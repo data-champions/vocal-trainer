@@ -1,0 +1,86 @@
+services:
+  voice_trainer_fe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # volumes:
+    #   - /backend:/app
+    #   - uv-cache:/root/.cache/uv
+    # environment:
+    #   UVICORN_RELOAD: "true"
+    ports:
+      - "8501:8501"
+    # env_file:
+      # made in dev, in prod/staging use only env vars from coolify
+      # - .env
+    labels:
+      - "traefik.enable=true" # discoverable by traefik
+      - "traefik.docker.network=coolify"
+      - "traefik.http.routers.voice_trainer_fe.entrypoints=https"
+      - "traefik.http.routers.voice_trainer_fe.tls=true"
+
+
+      # Apex (HTTPS)
+      - traefik.http.routers.voice_trainer_fe.rule=Host(`music.weather-on-calendar.com`)
+
+      - traefik.http.routers.voice_trainer.rule=Host(`music.weather-on-calendar.com`)
+      - traefik.http.routers.voice_trainer.entrypoints=https
+      - traefik.http.routers.voice_trainer.tls=true
+      # If your Traefik needs it:
+      # - traefik.http.routers.frontend.tls.certresolver=letsencrypt
+
+      # Apex (HTTP -> HTTPS)
+      - traefik.http.routers.voice_trainer-http.rule=Host(`music.weather-on-calendar.com`)
+      - traefik.http.routers.voice_trainer-http.entrypoints=http
+      - traefik.http.routers.voice_trainer-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+
+      # WWW -> apex (both http & https)
+      - traefik.http.routers.voice_trainer-www.rule=Host(`www.music.weather-on-calendar.com`)
+      - traefik.http.routers.voice_trainer-www.entrypoints=http,https
+      - traefik.http.routers.voice_trainer-www.tls=true
+
+      # Ensure we outrank generic rules
+      - traefik.http.routers.voice_trainer.priority=100
+
+      # # -------------------
+      # # Preview router (parametric)
+      # # -------------------
+      # # use your actual ACME resolver if needed:
+      # # - traefik.http.routers.preview.tls.certresolver=letsencrypt
+      # # send to the same FE service/port
+      - traefik.http.routers.woc-preview.service=voice_trainer
+      - traefik.http.routers.woc-preview.priority=150
+
+      # # HTTP -> HTTPS for previews
+      # - traefik.http.routers.woc-preview-http.rule=HostRegexp(`pr{num:[0-9]+}.weather-on-calendar.com`)
+      # - traefik.http.routers.woc-preview-http.entrypoints=http
+      # - traefik.http.routers.woc-preview-http.middlewares=woc-redirect-to-https
+
+      # # -------- Generic: www.<sub>.weather-on-calendar.com → <sub>.weather-on-calendar.com --------
+      # - traefik.http.routers.sub-www-redirect.rule=HostRegexp(`www.{subdomain:[^.]+}.weather-on-calendar.com`)
+      # - traefik.http.routers.sub-www-redirect.entrypoints=http,https
+      # - traefik.http.routers.sub-www-redirect.tls=true
+      # # - traefik.http.routers.sub-www-redirect.tls.certresolver=letsencrypt
+      # - traefik.http.routers.sub-www-redirect.service=noop@internal
+      # - traefik.http.middlewares.strip-subwww.redirectregex.regex=^https?://www\.([^.]+)\.weather-on-calendar\.com(.*)
+      # - traefik.http.middlewares.strip-subwww.redirectregex.replacement=https://$1.weather-on-calendar.com$2
+      # - traefik.http.middlewares.strip-subwww.redirectregex.permanent=true
+      # - traefik.http.routers.sub-www-redirect.middlewares=strip-subwww
+      # - traefik.http.routers.sub-www-redirect.priority=200
+
+      # # (Optional reusable catch-all www stripper)
+      # - traefik.http.middlewares.strip-www.redirectregex.regex=^(https?)://www\.(.+)
+      # - traefik.http.middlewares.strip-www.redirectregex.replacement=$${1}://$${2}
+      # - traefik.ht
+      
+      # # -------------------
+      # # Middleware (reusable)
+      # # -------------------
+      # - "traefik.http.middlewares.strip-www.redirectregex.regex=^(https?)://www\\.(.+)"
+      # - "traefik.http.middlewares.strip-www.redirectregex.replacement=$${1}://$${2}"
+      # - "traefik.http.middlewares.strip-www.redirectregex.permanent=true"
+volumes:
+  uv-cache:
+  npm-cache:
+  frontend-node-modules:
