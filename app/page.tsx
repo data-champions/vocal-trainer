@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 const SAMPLE_RATE = 44_100;
-const INTERVAL_STEPS = 2;
 const GAP_SECONDS = 0.05;
+
+// Whole steps (2) and half steps (1) for a major scale: T-T-ST-T-T-T-ST
+const MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1];
 
 const PIANO_KEYS = [
   "C8",
@@ -17,6 +19,8 @@ const PIANO_KEYS = [
   "B1", "A#1", "A1", "G#1", "G1", "F#1", "F1", "E1", "D#1", "D1", "C#1", "C1",
   "B0", "A#0", "A0"
 ];
+
+const ASCENDING_KEYS = [...PIANO_KEYS].reverse();
 
 const NOTE_TO_ITALIAN: Record<string, string> = {
   C: "Do",
@@ -53,22 +57,29 @@ function toItalianLabel(note: string): string {
 }
 
 
-function buildSequence(startNote: string, count: number, interval: number): string[] {
-  const reversed = [...PIANO_KEYS].reverse();
-  const startIdx = reversed.indexOf(startNote);
-  if (startIdx === -1) {
-    return [startNote];
+function buildAscendingNotes(startNote: string, count: number): string[] {
+  if (count <= 0) {
+    return [];
   }
-
-  const ascending: string[] = [];
-  for (let step = 0; step < count; step += 1) {
-    const idx = startIdx + step * interval;
-    if (idx >= reversed.length) {
+  const startIdx = ASCENDING_KEYS.indexOf(startNote);
+  if (startIdx === -1) {
+    return [];
+  }
+  const ascending: string[] = [ASCENDING_KEYS[startIdx]];
+  let currentIdx = startIdx;
+  for (let i = 0; i < count - 1; i += 1) {
+    const interval = MAJOR_SCALE_INTERVALS[i % MAJOR_SCALE_INTERVALS.length];
+    currentIdx += interval;
+    if (currentIdx >= ASCENDING_KEYS.length) {
       break;
     }
-    ascending.push(reversed[idx]);
+    ascending.push(ASCENDING_KEYS[currentIdx]);
   }
+  return ascending;
+}
 
+function buildSequence(startNote: string, count: number): string[] {
+  const ascending = buildAscendingNotes(startNote, count);
   if (ascending.length === 0) {
     return [startNote];
   }
@@ -213,11 +224,8 @@ export default function HomePage(): JSX.Element {
     if (!selectedNote) {
       return 20;
     }
-    const idx = PIANO_KEYS.indexOf(selectedNote);
-    if (idx === -1) {
-      return 1;
-    }
-    return Math.floor((PIANO_KEYS.length - idx - 1) / INTERVAL_STEPS) + 1;
+    const ascending = buildAscendingNotes(selectedNote, PIANO_KEYS.length);
+    return ascending.length > 0 ? ascending.length : 1;
   }, [selectedNote]);
 
   useEffect(() => {
@@ -231,7 +239,7 @@ export default function HomePage(): JSX.Element {
     if (!selectedNote) {
       return [];
     }
-    return buildSequence(selectedNote, noteCount, INTERVAL_STEPS);
+    return buildSequence(selectedNote, noteCount);
   }, [selectedNote, noteCount]);
 
   const sequenceDisplay = useMemo(() => {
