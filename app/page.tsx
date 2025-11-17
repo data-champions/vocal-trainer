@@ -211,6 +211,67 @@ export default function HomePage(): JSX.Element {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
+  const currentNoteIndex = useMemo(() => (selectedNote ? ASCENDING_KEYS.indexOf(selectedNote) : -1), [selectedNote]);
+  const canStepDown = currentNoteIndex > 0;
+  const canStepUp = currentNoteIndex >= 0 && currentNoteIndex < ASCENDING_KEYS.length - 1;
+  const generateAudioForNote = (note: string): boolean => {
+    if (!note) {
+      return false;
+    }
+    const generatedSequence = buildSequence(note, noteCount);
+    if (generatedSequence.length === 0) {
+      setFeedback({ type: "warning", message: "La sequenza generata è vuota." });
+      return false;
+    }
+
+    const track = buildSequenceSamples(generatedSequence, duration, SAMPLE_RATE, GAP_SECONDS);
+    if (track.length === 0) {
+      setFeedback({ type: "warning", message: "Nessun audio generato; riprova con una durata maggiore." });
+      return false;
+    }
+
+    const wavBuffer = encodeWav(track, SAMPLE_RATE, 1);
+    const blob = new Blob([wavBuffer], { type: "audio/wav" });
+    const url = URL.createObjectURL(blob);
+    setAudioUrl((prev) => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return url;
+    });
+
+    const display = generatedSequence
+      .map((sequenceNote) => (notationMode === "italian" ? toItalianLabel(sequenceNote) : sequenceNote))
+      .join(", ");
+    setSequenceDescription(display);
+    setFeedback({
+      type: "success",
+      message:
+        playMode === "loop"
+          ? "Audio pronto in modalità ripetizione infinita. Premi play sul lettore."
+          : "Audio pronto.  premi play sul lettore."
+    });
+    return true;
+  };
+
+  const handleHalfStep = (direction: 1 | -1) => {
+    if (!selectedNote) {
+      return;
+    }
+    const idx = ASCENDING_KEYS.indexOf(selectedNote);
+    if (idx === -1) {
+      return;
+    }
+    const nextIdx = idx + direction;
+    if (nextIdx < 0 || nextIdx >= ASCENDING_KEYS.length) {
+      return;
+    }
+    const nextNote = ASCENDING_KEYS[nextIdx];
+    setSelectedNote(nextNote);
+    if (audioUrl) {
+      generateAudioForNote(nextNote);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -265,34 +326,7 @@ export default function HomePage(): JSX.Element {
       setFeedback({ type: "warning", message: "Scegli una nota prima di avviare la riproduzione." });
       return;
     }
-    if (sequence.length === 0) {
-      setFeedback({ type: "warning", message: "La sequenza generata è vuota." });
-      return;
-    }
-
-    const track = buildSequenceSamples(sequence, duration, SAMPLE_RATE, GAP_SECONDS);
-    if (track.length === 0) {
-      setFeedback({ type: "warning", message: "Nessun audio generato; riprova con una durata maggiore." });
-      return;
-    }
-
-    const wavBuffer = encodeWav(track, SAMPLE_RATE, 1);
-    const blob = new Blob([wavBuffer], { type: "audio/wav" });
-    const url = URL.createObjectURL(blob);
-    setAudioUrl((prev) => {
-      if (prev) {
-        URL.revokeObjectURL(prev);
-      }
-      return url;
-    });
-    setSequenceDescription(sequenceDisplay);
-    setFeedback({
-      type: "success",
-      message:
-        playMode === "loop"
-          ? "Audio pronto in modalità ripetizione infinita. Premi play sul lettore."
-          : "Audio pronto.  premi play sul lettore."
-    });
+    generateAudioForNote(selectedNote);
   };
 
   const handleStop = () => {
@@ -427,6 +461,29 @@ export default function HomePage(): JSX.Element {
             <button className="secondary-button" type="button" onClick={handleStop} disabled={!audioUrl}>
               ⏹️ Ferma
             </button>
+          </div>
+          <div style={{ marginTop: "12px" }}>
+            <p style={{ margin: "0 0 4px" }}>Trasponi nota iniziale di mezzo tono</p>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                className="secondary-button"
+                type="button"
+                aria-label="Abbassa nota di mezzo tono"
+                onClick={() => handleHalfStep(-1)}
+                disabled={!canStepDown}
+              >
+                ⬇️ Nota giù
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                aria-label="Alza nota di mezzo tono"
+                onClick={() => handleHalfStep(1)}
+                disabled={!canStepUp}
+              >
+                ⬆️ Nota su
+              </button>
+            </div>
           </div>
           {feedback && (
             <div className={`feedback ${feedback.type}`}>
