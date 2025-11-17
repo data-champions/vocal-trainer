@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const SAMPLE_RATE = 44_100;
 const GAP_SECONDS = 0.05;
@@ -37,6 +37,26 @@ const NOTE_TO_ITALIAN: Record<string, string> = {
   B: "Si"
 };
 
+type VocalRangeKey =
+  | "soprano"
+  | "mezzo-soprano"
+  | "contralto"
+  | "countertenor"
+  | "tenor"
+  | "baritone"
+  | "bass";
+
+const VOCAL_RANGES: Record<VocalRangeKey, { label: string; min: string; max: string }> = {
+  soprano: { label: "Soprano", min: "C4", max: "A5" },
+  "mezzo-soprano": { label: "Mezzo-soprano", min: "A3", max: "F#5" },
+  contralto: { label: "Contralto", min: "F3", max: "D5" },
+  countertenor: { label: "Countertenore", min: "G3", max: "E5" },
+  tenor: { label: "Tenore", min: "C3", max: "A4" },
+  baritone: { label: "Baritono", min: "A2", max: "F4" },
+  bass: { label: "Basso", min: "F2", max: "E4" }
+};
+
+const noteIndex = (note: string): number => ASCENDING_KEYS.indexOf(note);
 
 type Feedback =
   | { type: "success" | "info" | "warning"; message: string }
@@ -54,6 +74,10 @@ function extractOctave(note: string): string {
 function toItalianLabel(note: string): string {
   const base = removeDigits(note);
   return `${NOTE_TO_ITALIAN[base] ?? base}${extractOctave(note)}`;
+}
+
+function formatNoteByNotation(note: string, mode: "italian" | "english"): string {
+  return mode === "italian" ? toItalianLabel(note) : note;
 }
 
 
@@ -204,6 +228,7 @@ function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE, numChannels 
 
 export default function HomePage(): JSX.Element {
   const [notationMode, setNotationMode] = useState<"italian" | "english">("italian");
+  const [vocalRange, setVocalRange] = useState<VocalRangeKey>("mezzo-soprano");
   const [selectedNote, setSelectedNote] = useState("");
   const [duration, setDuration] = useState(1);
   const [noteCount, setNoteCount] = useState(3);
@@ -211,59 +236,84 @@ export default function HomePage(): JSX.Element {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
-  const currentNoteIndex = useMemo(() => (selectedNote ? ASCENDING_KEYS.indexOf(selectedNote) : -1), [selectedNote]);
-  const canStepDown = currentNoteIndex > 0;
-  const canStepUp = currentNoteIndex >= 0 && currentNoteIndex < ASCENDING_KEYS.length - 1;
-  const generateAudioForNote = (note: string): boolean => {
-    if (!note) {
-      return false;
+  const selectedRange = VOCAL_RANGES[vocalRange];
+  const rangeBounds = useMemo(() => {
+    const startIdx = noteIndex(selectedRange.min);
+    const endIdx = noteIndex(selectedRange.max);
+    return { startIdx, endIdx };
+  }, [selectedRange.min, selectedRange.max]);
+  const rangeNotesAsc = useMemo(() => {
+    if (rangeBounds.startIdx === -1 || rangeBounds.endIdx === -1) {
+      return ASCENDING_KEYS;
     }
-    const generatedSequence = buildSequence(note, noteCount);
-    if (generatedSequence.length === 0) {
-      setFeedback({ type: "warning", message: "La sequenza generata è vuota." });
-      return false;
-    }
-
-    const track = buildSequenceSamples(generatedSequence, duration, SAMPLE_RATE, GAP_SECONDS);
-    if (track.length === 0) {
-      setFeedback({ type: "warning", message: "Nessun audio generato; riprova con una durata maggiore." });
-      return false;
-    }
-
-    const wavBuffer = encodeWav(track, SAMPLE_RATE, 1);
-    const blob = new Blob([wavBuffer], { type: "audio/wav" });
-    const url = URL.createObjectURL(blob);
-    setAudioUrl((prev) => {
-      if (prev) {
-        URL.revokeObjectURL(prev);
+    return ASCENDING_KEYS.slice(rangeBounds.startIdx, rangeBounds.endIdx + 1);
+  }, [rangeBounds.startIdx, rangeBounds.endIdx]);
+  const allowedNoteSet = useMemo(() => new Set(rangeNotesAsc), [rangeNotesAsc]);
+  const availableNotes = useMemo(
+    () => PIANO_KEYS.filter((note) => allowedNoteSet.has(note)),
+    [allowedNoteSet]
+  );
+  const currentNoteIndex = useMemo(() => (selectedNote ? noteIndex(selectedNote) : -1), [selectedNote]);
+  const canStepDown =
+    currentNoteIndex !== -1 && rangeBounds.startIdx !== -1 && currentNoteIndex > rangeBounds.startIdx;
+  const canStepUp =
+    currentNoteIndex !== -1 && rangeBounds.endIdx !== -1 && currentNoteIndex < rangeBounds.endIdx;
+  const generateAudioForNote = useCallback(
+    (note: string): boolean => {
+      if (!note) {
+        return false;
       }
-      return url;
-    });
+      const generatedSequence = buildSequence(note, noteCount);
+      if (generatedSequence.length === 0) {
+        setFeedback({ type: "warning", message: "La sequenza generata è vuota." });
+        return false;
+      }
 
-    const display = generatedSequence
-      .map((sequenceNote) => (notationMode === "italian" ? toItalianLabel(sequenceNote) : sequenceNote))
-      .join(", ");
-    setSequenceDescription(display);
-    setFeedback({
-      type: "success",
-      message:
-        playMode === "loop"
-          ? "Audio pronto in modalità ripetizione infinita. Premi play sul lettore."
-          : "Audio pronto.  premi play sul lettore."
-    });
-    return true;
-  };
+      const track = buildSequenceSamples(generatedSequence, duration, SAMPLE_RATE, GAP_SECONDS);
+      if (track.length === 0) {
+        setFeedback({ type: "warning", message: "Nessun audio generato; riprova con una durata maggiore." });
+        return false;
+      }
+
+      const wavBuffer = encodeWav(track, SAMPLE_RATE, 1);
+      const blob = new Blob([wavBuffer], { type: "audio/wav" });
+      const url = URL.createObjectURL(blob);
+      setAudioUrl((prev) => {
+        if (prev) {
+          URL.revokeObjectURL(prev);
+        }
+        return url;
+      });
+
+      const display = generatedSequence.map((sequenceNote) => formatNoteByNotation(sequenceNote, notationMode)).join(", ");
+      setSequenceDescription(display);
+      setFeedback({
+        type: "success",
+        message:
+          playMode === "loop"
+            ? "Audio pronto in modalità ripetizione infinita. Premi play sul lettore."
+            : "Audio pronto.  premi play sul lettore."
+      });
+      return true;
+    },
+    [noteCount, duration, notationMode, playMode]
+  );
 
   const handleHalfStep = (direction: 1 | -1) => {
     if (!selectedNote) {
       return;
     }
-    const idx = ASCENDING_KEYS.indexOf(selectedNote);
+    const idx = noteIndex(selectedNote);
     if (idx === -1) {
       return;
     }
     const nextIdx = idx + direction;
-    if (nextIdx < 0 || nextIdx >= ASCENDING_KEYS.length) {
+    if (
+      nextIdx < 0 ||
+      nextIdx >= ASCENDING_KEYS.length ||
+      (rangeBounds.startIdx !== -1 && nextIdx < rangeBounds.startIdx) ||
+      (rangeBounds.endIdx !== -1 && nextIdx > rangeBounds.endIdx)
+    ) {
       return;
     }
     const nextNote = ASCENDING_KEYS[nextIdx];
@@ -272,6 +322,37 @@ export default function HomePage(): JSX.Element {
       generateAudioForNote(nextNote);
     }
   };
+
+  useEffect(() => {
+    if (!selectedNote) {
+      return;
+    }
+    if (!allowedNoteSet.has(selectedNote)) {
+      const currentIdx = noteIndex(selectedNote);
+      let fallbackIdx = -1;
+      if (rangeBounds.startIdx !== -1 && currentIdx !== -1 && currentIdx < rangeBounds.startIdx) {
+        fallbackIdx = rangeBounds.startIdx;
+      } else if (rangeBounds.endIdx !== -1 && currentIdx !== -1 && currentIdx > rangeBounds.endIdx) {
+        fallbackIdx = rangeBounds.endIdx;
+      } else if (rangeBounds.startIdx !== -1) {
+        fallbackIdx = rangeBounds.startIdx;
+      }
+      const fallbackNote =
+        fallbackIdx !== -1 ? ASCENDING_KEYS[fallbackIdx] : availableNotes[0] ?? "";
+      setSelectedNote(fallbackNote);
+      if (fallbackNote && audioUrl) {
+        generateAudioForNote(fallbackNote);
+      }
+    }
+  }, [
+    allowedNoteSet,
+    selectedNote,
+    availableNotes,
+    rangeBounds.startIdx,
+    rangeBounds.endIdx,
+    audioUrl,
+    generateAudioForNote
+  ]);
 
   useEffect(() => {
     return () => {
@@ -307,9 +388,7 @@ export default function HomePage(): JSX.Element {
     if (sequence.length === 0) {
       return "";
     }
-    return sequence
-      .map((note) => (notationMode === "italian" ? toItalianLabel(note) : note))
-      .join(", ");
+    return sequence.map((note) => formatNoteByNotation(note, notationMode)).join(", ");
   }, [sequence, notationMode]);
 
   useEffect(() => {
@@ -367,6 +446,25 @@ export default function HomePage(): JSX.Element {
               </button>
             </div>
           </div>
+          <label htmlFor="vocal-range-select" style={{ marginTop: "12px", display: "block" }}>
+            Estensione vocale
+            <select
+              id="vocal-range-select"
+              value={vocalRange}
+              onChange={(event) => setVocalRange(event.target.value as VocalRangeKey)}
+            >
+              {(Object.keys(VOCAL_RANGES) as VocalRangeKey[]).map((rangeKey) => {
+                const range = VOCAL_RANGES[rangeKey];
+                const minLabel = formatNoteByNotation(range.min, notationMode);
+                const maxLabel = formatNoteByNotation(range.max, notationMode);
+                return (
+                  <option key={rangeKey} value={rangeKey}>
+                    {`${range.label} (${minLabel}–${maxLabel})`}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
         </fieldset>
 
         <fieldset>
@@ -382,9 +480,9 @@ export default function HomePage(): JSX.Element {
               <option value="" disabled>
                 Seleziona la nota
               </option>
-              {PIANO_KEYS.map((note) => (
+              {availableNotes.map((note) => (
                 <option key={note} value={note}>
-                  {`${toItalianLabel(note)} / ${note}`}
+                  {formatNoteByNotation(note, notationMode)}
                 </option>
               ))}
             </select>
