@@ -160,7 +160,8 @@ async function renderPianoSequence(
     });
   }, offlineDuration);
 
-  const channels = toneBuffer.toArray();
+  const channelData = toneBuffer.toArray();
+  const channels = Array.isArray(channelData) ? channelData : [channelData];
   if (channels.length === 0) {
     return null;
   }
