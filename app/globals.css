@@ -199,6 +199,22 @@ button {
   color: #fecaca;
 }
 
+.flash-button {
+  animation: flashPulse 1s linear infinite;
+}
+
+@keyframes flashPulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 .player-card {
   margin-top: 32px;
   padding: 24px;

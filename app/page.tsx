@@ -317,9 +317,11 @@ export default function HomePage(): JSX.Element {
   const [voiceFrequency, setVoiceFrequency] = useState<number | null>(null);
   const [currentTargetFrequency, setCurrentTargetFrequency] = useState<number | null>(null);
   const [currentTargetNote, setCurrentTargetNote] = useState("");
-  const [pitchHistory, setPitchHistory] = useState<number[]>([]);
+  const [pitchHistory, setPitchHistory] = useState<(number | null)[]>([]);
+  const [targetHistory, setTargetHistory] = useState<(number | null)[]>([]);
   const [pitchStatus, setPitchStatus] = useState<"idle" | "starting" | "ready" | "error">("idle");
   const [pitchError, setPitchError] = useState<string | null>(null);
+  const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
   const generationIdRef = useRef(0);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
@@ -608,6 +610,13 @@ export default function HomePage(): JSX.Element {
     return sequence.map((note) => formatNoteByNotation(note, notationMode)).join(", ");
   }, [sequence, notationMode]);
 
+  const selectedRangeFrequencies = useMemo(() => {
+    return {
+      min: midiFrequency(selectedRange.min),
+      max: midiFrequency(selectedRange.max)
+    };
+  }, [selectedRange.min, selectedRange.max]);
+
   const currentTargetNoteLabel = useMemo(() => {
     if (!currentTargetNote) {
       return "—";
@@ -649,21 +658,34 @@ export default function HomePage(): JSX.Element {
   }, [pitchStatus, pitchError]);
 
   const pitchChartData = useMemo(() => {
+    const maxLength = Math.max(pitchHistory.length, targetHistory.length);
+    const labels = Array.from({ length: maxLength }, (_, index) => index);
+    const voicedData = labels.map((_, idx) => pitchHistory[idx] ?? null);
+    const targetData = labels.map((_, idx) => targetHistory[idx] ?? null);
     return {
-      labels: pitchHistory.map((_, index) => index),
+      labels,
       datasets: [
         {
+          label: "Nota bersaglio (Hz)",
+          data: targetData,
+          borderColor: "rgba(80, 220, 120, 1)",
+          backgroundColor: "rgba(80, 220, 120, 0.15)",
+          pointRadius: 0,
+          tension: 0.2,
+          spanGaps: true
+        },
+        {
           label: "Voce (Hz)",
-          data: pitchHistory,
-          borderColor: "rgba(255, 159, 186, 1)",
-          backgroundColor: "rgba(255, 159, 186, 0.25)",
+          data: voicedData,
+          borderColor: "rgba(255, 214, 102, 1)",
+          backgroundColor: "rgba(255, 214, 102, 0.25)",
           pointRadius: 0,
           tension: 0.35,
-          fill: false
+          spanGaps: true
         }
       ]
     };
-  }, [pitchHistory]);
+  }, [pitchHistory, targetHistory]);
 
   const pitchChartOptions = useMemo(() => {
     return {
@@ -675,8 +697,8 @@ export default function HomePage(): JSX.Element {
           display: false
         },
         y: {
-          min: 50,
-          max: 1000,
+          min: 30,
+          max: 1500,
           ticks: {
             color: "#ccc"
           },
@@ -715,6 +737,9 @@ export default function HomePage(): JSX.Element {
     playbackScheduleRef.current = null;
     setCurrentTargetFrequency(null);
     setCurrentTargetNote("");
+    setPitchHistory([]);
+    setTargetHistory([]);
+    setPitchOutOfRange(false);
     setAudioUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -755,20 +780,46 @@ export default function HomePage(): JSX.Element {
       pitchDetectorRef.current = PitchDetector.forFloat32Array(analyser.fftSize);
       source.connect(analyser);
       setPitchHistory([]);
+      setTargetHistory([]);
+      setVoiceFrequency(null);
+      setPitchOutOfRange(false);
 
       const detectPitch = () => {
         if (!analyserRef.current || !pitchDetectorRef.current || !analyserBufferRef.current || !audioContextRef.current) {
+          pitchRafRef.current = requestAnimationFrame(detectPitch);
           return;
         }
         analyserRef.current.getFloatTimeDomainData(analyserBufferRef.current);
         const [pitch, clarity] = pitchDetectorRef.current.findPitch(analyserBufferRef.current, audioContextRef.current.sampleRate);
-        if (clarity > 0.8 && pitch > 40 && pitch < 1500) {
-          setVoiceFrequency(pitch);
-          setPitchHistory((prev) => [...prev.slice(-100), pitch]);
+        const voiceValue = clarity > 0.8 && pitch > 30 && pitch < 2000 ? pitch : null;
+        const targetValue = targetFrequencyRef.current ?? null;
+
+        if (voiceValue !== null) {
+          setVoiceFrequency(voiceValue);
+          voiceFrequencyRef.current = voiceValue;
+          const inRange = voiceValue >= selectedRangeFrequencies.min && voiceValue <= selectedRangeFrequencies.max;
+          setPitchOutOfRange(!inRange);
+        } else {
+          setVoiceFrequency(null);
+          voiceFrequencyRef.current = null;
+          setPitchOutOfRange(false);
         }
+
+        setPitchHistory((prev) => {
+          const next = [...prev, voiceValue];
+          const limit = 150;
+          return next.length > limit ? next.slice(next.length - limit) : next;
+        });
+        setTargetHistory((prev) => {
+          const next = [...prev, targetValue];
+          const limit = 150;
+          return next.length > limit ? next.slice(next.length - limit) : next;
+        });
+
         pitchRafRef.current = requestAnimationFrame(detectPitch);
       };
 
+      setPitchOutOfRange(false);
       setPitchStatus("ready");
       pitchRafRef.current = requestAnimationFrame(detectPitch);
     } catch (error) {
@@ -776,7 +827,7 @@ export default function HomePage(): JSX.Element {
       setPitchStatus("error");
       setPitchError("Consenti l'accesso al microfono per rilevare la voce.");
     }
-  }, [pitchStatus]);
+  }, [pitchStatus, selectedRangeFrequencies.min, selectedRangeFrequencies.max]);
 
   return (
     <main>
@@ -970,6 +1021,20 @@ export default function HomePage(): JSX.Element {
         <div style={{ height: "180px" }}>
           <Line data={pitchChartData} options={pitchChartOptions} />
         </div>
+        {pitchOutOfRange && (
+          <button
+            type="button"
+            className="secondary-button flash-button"
+            style={{
+              marginTop: "12px",
+              backgroundColor: "#ff6b6b",
+              borderColor: "#ff6b6b",
+              color: "#fff"
+            }}
+          >
+          Pitch fuori dai limiti, controlla l&apos;estensione vocale
+          </button>
+        )}
       </section>
 
       {audioUrl && (
