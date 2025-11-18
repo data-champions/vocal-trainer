@@ -571,7 +571,7 @@ export default function HomePage(): JSX.Element {
         </fieldset>
 
         <fieldset>
-          <legend>Sequenza melodica</legend>
+          <legend>Sequenza e controlli</legend>
           <label htmlFor="note-select">
             Nota iniziale
             <select
@@ -624,38 +624,20 @@ export default function HomePage(): JSX.Element {
             <small>Massimo disponibile: {Math.min(maxNotes, 16)}</small>
           </label>
 
-          <div className="toggle-row">
-            <p>Modalità</p>
-            <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
-              <button
-                type="button"
-                className={`toggle-option${playMode === "single" ? " active" : ""}`}
-                aria-pressed={playMode === "single"}
-                onClick={() => setPlayMode("single")}
-              >
-                ▶️ Play
-              </button>
-              <button
-                type="button"
-                className={`toggle-option${playMode === "loop" ? " active" : ""}`}
-                aria-pressed={playMode === "loop"}
-                onClick={() => setPlayMode("loop")}
-              >
-                🔁 Ripetizione infinita
-              </button>
-            </div>
-          </div>
-
           {sequence.length > 0 && (
             <p className="note-display">
               Sequenza selezionata: {sequenceDisplay}
             </p>
           )}
-        </fieldset>
 
-        <fieldset>
-          <legend>Controlli</legend>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: "12px",
+              marginTop: "16px"
+            }}
+          >
             <button
               className="primary-button"
               type="button"
@@ -667,52 +649,72 @@ export default function HomePage(): JSX.Element {
             <button
               className="secondary-button"
               type="button"
+              aria-label="Abbassa nota di mezzo tono"
+              onClick={() => handleHalfStep(-1)}
+              disabled={!canStepDown}
+            >
+              ⬇️ Nota giù
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
               onClick={handleStop}
               disabled={!audioUrl && !isRendering}
             >
               ⏹️ Ferma
             </button>
-          </div>
-          <div style={{ marginTop: "12px" }}>
-            <p style={{ margin: "0 0 4px" }}>Trasponi nota iniziale di mezzo tono</p>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <button
-                className="secondary-button"
-                type="button"
-                aria-label="Abbassa nota di mezzo tono"
-                onClick={() => handleHalfStep(-1)}
-                disabled={!canStepDown}
-              >
-                ⬇️ Nota giù
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                aria-label="Alza nota di mezzo tono"
-                onClick={() => handleHalfStep(1)}
-                disabled={!canStepUp}
-              >
-                ⬆️ Nota su
-              </button>
-            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              aria-label="Alza nota di mezzo tono"
+              onClick={() => handleHalfStep(1)}
+              disabled={!canStepUp}
+            >
+              ⬆️ Nota su
+            </button>
           </div>
           {feedback && (
-            <div className={`feedback ${feedback.type}`}>
+            <div className={`feedback ${feedback.type}`} style={{ marginTop: "12px" }}>
               {feedback.message}
             </div>
           )}
         </fieldset>
       </div>
 
+      <fieldset style={{ marginTop: "16px" }}>
+        <legend>Modalità</legend>
+        <div className="toggle-row">
+          <p>Modalità</p>
+          <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
+            <button
+              type="button"
+              className={`toggle-option${playMode === "single" ? " active" : ""}`}
+              aria-pressed={playMode === "single"}
+              onClick={() => setPlayMode("single")}
+            >
+              ▶️ Play
+            </button>
+            <button
+              type="button"
+              className={`toggle-option${playMode === "loop" ? " active" : ""}`}
+              aria-pressed={playMode === "loop"}
+              onClick={() => setPlayMode("loop")}
+            >
+              🔁 Ripetizione infinita
+            </button>
+          </div>
+        </div>
+      </fieldset>
+
       {audioUrl && (
         <div className="player-card">
-          <p>{sequenceDescription ? `Ascoltando: ${sequenceDescription}` : "Audio pronto"}</p>
           <audio
             key={audioUrl}
             controls
             autoPlay
             loop={playMode === "loop"}
             src={audioUrl}
+            aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
           />
         </div>
       )}
