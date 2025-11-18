@@ -1,10 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  Tooltip,
+  Legend
+} from "chart.js";
+import { PitchDetector } from "pitchy";
+
+ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
 
 const SAMPLE_RATE = 44_100;
 const GAP_SECONDS = 0.05;
-const PITCH_MODEL_URL = "https://cdn.jsdelivr.net/npm/ml5@1.3.0/dist/models/pitch-detection/crepe/";
 const PIANO_SAMPLE_BASE_URL = "https://tonejs.github.io/audio/salamander/";
 const PIANO_SAMPLE_MAP = {
   A0: "A0.mp3",
@@ -72,25 +84,13 @@ const NOTE_TO_ITALIAN: Record<string, string> = {
 };
 
 type ToneModule = typeof import("tone");
-type Ml5Module = typeof import("ml5");
 
 type PianoRendering = {
   samples: Float32Array;
   sampleRate: number;
 };
 
-type PitchSample = {
-  target: number | null;
-  voice: number | null;
-  timestamp: number;
-};
-
-type PitchDetector = {
-  getPitch: (callback: (error: Error | null, frequency: number | null) => void) => void;
-};
-
 let toneModulePromise: Promise<ToneModule> | null = null;
-let ml5ModulePromise: Promise<Ml5Module> | null = null;
 let pianoPreloadPromise: Promise<void> | null = null;
 let pianoSamplesReady = false;
 
@@ -101,12 +101,6 @@ function loadToneModule(): Promise<ToneModule> {
   return toneModulePromise;
 }
 
-function loadMl5Module(): Promise<Ml5Module> {
-  if (!ml5ModulePromise) {
-    ml5ModulePromise = import("ml5");
-  }
-  return ml5ModulePromise;
-}
 
 function preloadPianoSamples(): Promise<void> {
   if (pianoSamplesReady) {
@@ -309,80 +303,6 @@ function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE, numChannels 
   return buffer;
 }
 
-type PitchPlotProps = {
-  samples: PitchSample[];
-};
-
-function PitchPlot({ samples }: PitchPlotProps): JSX.Element {
-  const width = 420;
-  const height = 140;
-  const padding = 16;
-  const effective = samples.length > 0 ? samples : [{ target: null, voice: null, timestamp: Date.now() }];
-  const numericValues = effective.flatMap((sample) => {
-    const values: number[] = [];
-    if (typeof sample.voice === "number" && !Number.isNaN(sample.voice)) {
-      values.push(sample.voice);
-    }
-    return values;
-  });
-  const minValue = numericValues.length > 0 ? Math.min(...numericValues) : 80;
-  const maxValue = numericValues.length > 0 ? Math.max(...numericValues) : 400;
-  const range = Math.max(maxValue - minValue, 60);
-  const paddingRange = Math.max(range * 0.4, 150);
-  const lowerBound = Math.max(40, minValue - paddingRange);
-  const upperBound = Math.min(2000, maxValue + paddingRange);
-
-  const getX = (index: number) => {
-    if (effective.length <= 1) {
-      return padding;
-    }
-    return padding + (index / (effective.length - 1)) * (width - padding * 2);
-  };
-
-  const getY = (value: number) => {
-    const clamped = Math.min(Math.max(value, lowerBound), upperBound);
-    const ratio = (clamped - lowerBound) / (upperBound - lowerBound || 1);
-    return height - padding - ratio * (height - padding * 2);
-  };
-
-  const buildPath = () => {
-    let path = "";
-    let started = false;
-    effective.forEach((sample, index) => {
-      const value = sample.voice;
-      if (typeof value !== "number" || Number.isNaN(value)) {
-        started = false;
-        return;
-      }
-      const x = getX(index);
-      const y = getY(value);
-      path += `${started ? " L" : "M"}${x},${y}`;
-      started = true;
-    });
-    return path || null;
-  };
-
-  const voicePath = buildPath();
-
-  return (
-    <svg
-      width="100%"
-      height="140"
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label="Andamento dell'intonazione di pianoforte e voce"
-    >
-      <rect x={0} y={0} width={width} height={height} fill="rgba(255, 255, 255, 0.05)" rx={12} />
-      {[0, 1, 2, 3, 4].map((line) => {
-        const y = padding + ((height - padding * 2) * line) / 4;
-        return <line key={line} x1={padding} x2={width - padding} y1={y} y2={y} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />;
-      })}
-      {voicePath ? <path d={voicePath} fill="none" stroke="#ff9fb6" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" /> : null}
-    </svg>
-  );
-}
-
 export default function HomePage(): JSX.Element {
   const [notationMode, setNotationMode] = useState<"italian" | "english">("italian");
   const [vocalRange, setVocalRange] = useState<VocalRangeKey>("mezzo-soprano");
@@ -397,7 +317,7 @@ export default function HomePage(): JSX.Element {
   const [voiceFrequency, setVoiceFrequency] = useState<number | null>(null);
   const [currentTargetFrequency, setCurrentTargetFrequency] = useState<number | null>(null);
   const [currentTargetNote, setCurrentTargetNote] = useState("");
-  const [pitchSamples, setPitchSamples] = useState<PitchSample[]>([]);
+  const [pitchHistory, setPitchHistory] = useState<number[]>([]);
   const [pitchStatus, setPitchStatus] = useState<"idle" | "starting" | "ready" | "error">("idle");
   const [pitchError, setPitchError] = useState<string | null>(null);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
@@ -405,9 +325,11 @@ export default function HomePage(): JSX.Element {
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const playbackScheduleRef = useRef<{ note: string; start: number; end: number }[] | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const pitchDetectorRef = useRef<PitchDetector | null>(null);
+  const pitchDetectorRef = useRef<PitchDetector<Float32Array> | null>(null);
   const pitchRafRef = useRef<number | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const analyserBufferRef = useRef<Float32Array | null>(null);
   const voiceFrequencyRef = useRef<number | null>(null);
   const targetFrequencyRef = useRef<number | null>(null);
   const currentTargetNoteRef = useRef<string>("");
@@ -614,6 +536,8 @@ export default function HomePage(): JSX.Element {
         audioContextRef.current = null;
       }
       pitchDetectorRef.current = null;
+      analyserRef.current = null;
+      analyserBufferRef.current = null;
     };
   }, []);
 
@@ -724,6 +648,50 @@ export default function HomePage(): JSX.Element {
     }
   }, [pitchStatus, pitchError]);
 
+  const pitchChartData = useMemo(() => {
+    return {
+      labels: pitchHistory.map((_, index) => index),
+      datasets: [
+        {
+          label: "Voce (Hz)",
+          data: pitchHistory,
+          borderColor: "rgba(255, 159, 186, 1)",
+          backgroundColor: "rgba(255, 159, 186, 0.25)",
+          pointRadius: 0,
+          tension: 0.35,
+          fill: false
+        }
+      ]
+    };
+  }, [pitchHistory]);
+
+  const pitchChartOptions = useMemo(() => {
+    return {
+      responsive: true,
+      animation: false,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          display: false
+        },
+        y: {
+          min: 50,
+          max: 1000,
+          ticks: {
+            color: "#ccc"
+          },
+          grid: {
+            color: "rgba(255,255,255,0.1)"
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false }
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
       return;
@@ -732,20 +700,6 @@ export default function HomePage(): JSX.Element {
       setSequenceDescription(sequenceDisplay);
     }
   }, [audioUrl, sequence.length, sequenceDisplay, sequenceDescription]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setPitchSamples((prev) => {
-        const next = [...prev, { target: targetFrequencyRef.current, voice: voiceFrequencyRef.current, timestamp: Date.now() }];
-        const maxPoints = 80;
-        if (next.length > maxPoints) {
-          return next.slice(next.length - maxPoints);
-        }
-        return next;
-      });
-    }, 250);
-    return () => window.clearInterval(interval);
-  }, []);
 
   const handlePlay = () => {
     if (!selectedNote) {
@@ -781,7 +735,6 @@ export default function HomePage(): JSX.Element {
     try {
       setPitchStatus("starting");
       setPitchError(null);
-      const Ml5 = await loadMl5Module();
       if (!navigator.mediaDevices) {
         throw new Error("Media devices non disponibili");
       }
@@ -794,25 +747,29 @@ export default function HomePage(): JSX.Element {
       }
       const audioContext = new AudioCtx();
       audioContextRef.current = audioContext;
-      const pitch = await Ml5.pitchDetection(PITCH_MODEL_URL, audioContext, stream, () => undefined);
-      pitchDetectorRef.current = pitch as unknown as PitchDetector;
-      setPitchStatus("ready");
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      analyserRef.current = analyser;
+      analyserBufferRef.current = new Float32Array(analyser.fftSize);
+      pitchDetectorRef.current = PitchDetector.forFloat32Array(analyser.fftSize);
+      source.connect(analyser);
+      setPitchHistory([]);
 
       const detectPitch = () => {
-        if (!pitchDetectorRef.current) {
+        if (!analyserRef.current || !pitchDetectorRef.current || !analyserBufferRef.current || !audioContextRef.current) {
           return;
         }
-        pitchDetectorRef.current.getPitch((err, frequency) => {
-          if (err) {
-            console.error("Errore pitch detection", err);
-          }
-          if (typeof frequency === "number" && !Number.isNaN(frequency)) {
-            setVoiceFrequency(frequency);
-          }
-          pitchRafRef.current = requestAnimationFrame(detectPitch);
-        });
+        analyserRef.current.getFloatTimeDomainData(analyserBufferRef.current);
+        const [pitch, clarity] = pitchDetectorRef.current.findPitch(analyserBufferRef.current, audioContextRef.current.sampleRate);
+        if (clarity > 0.8 && pitch > 40 && pitch < 1500) {
+          setVoiceFrequency(pitch);
+          setPitchHistory((prev) => [...prev.slice(-100), pitch]);
+        }
+        pitchRafRef.current = requestAnimationFrame(detectPitch);
       };
 
+      setPitchStatus("ready");
       pitchRafRef.current = requestAnimationFrame(detectPitch);
     } catch (error) {
       console.error("Impossibile avviare la pitch detection", error);
@@ -1010,7 +967,9 @@ export default function HomePage(): JSX.Element {
         )}
         <p style={{ fontWeight: 600, margin: "12px 0 4px" }}>{pitchComparisonLabel}</p>
         <p style={{ margin: "0 0 12px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
-        <PitchPlot samples={pitchSamples} />
+        <div style={{ height: "180px" }}>
+          <Line data={pitchChartData} options={pitchChartOptions} />
+        </div>
       </section>
 
       {audioUrl && (
