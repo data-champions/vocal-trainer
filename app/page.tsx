@@ -688,6 +688,8 @@ export default function HomePage(): JSX.Element {
   }, [pitchHistory, targetHistory]);
 
   const pitchChartOptions = useMemo(() => {
+    const lowerBound = Math.max(30, selectedRangeFrequencies.min * 0.8);
+    const upperBound = Math.min(2000, selectedRangeFrequencies.max * 1.2);
     return {
       responsive: true,
       animation: false,
@@ -697,8 +699,8 @@ export default function HomePage(): JSX.Element {
           display: false
         },
         y: {
-          min: 30,
-          max: 1500,
+          min: lowerBound,
+          max: upperBound,
           ticks: {
             color: "#ccc"
           },
@@ -712,7 +714,7 @@ export default function HomePage(): JSX.Element {
         tooltip: { enabled: false }
       }
     };
-  }, []);
+  }, [selectedRangeFrequencies.min, selectedRangeFrequencies.max]);
 
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
