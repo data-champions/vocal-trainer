@@ -572,7 +572,7 @@ export default function HomePage(): JSX.Element {
         </fieldset>
 
         <fieldset>
-          <legend>Sequenza melodica</legend>
+          <legend>Sequenza e controlli</legend>
           <label htmlFor="note-select">
             Nota iniziale
             <select
@@ -625,8 +625,71 @@ export default function HomePage(): JSX.Element {
             <small>Massimo disponibile: {Math.min(maxNotes, 16)}</small>
           </label>
 
+          {sequence.length > 0 && (
+            <p className="note-display">
+              Sequenza selezionata: {sequenceDisplay}
+            </p>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "12px",
+              marginTop: "16px"
+            }}
+          >
+            <button
+              className="primary-button"
+              type="button"
+              onClick={handlePlay}
+              disabled={!selectedNote || isRendering}
+              style={{ width: "80%", minWidth: 0 }}
+            >
+              {isRendering ? "🎹 In preparazione" : "▶️ Avvia"}
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={handleStop}
+              disabled={!audioUrl && !isRendering}
+              style={{ width: "80%", minWidth: 0 }}
+            >
+              ⏹️ Ferma
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              aria-label="Abbassa nota di mezzo tono"
+              onClick={() => handleHalfStep(-1)}
+              disabled={!canStepDown}
+              style={{ width: "80%", minWidth: 0 }}
+            >
+              ⬇️ Nota giù
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              aria-label="Alza nota di mezzo tono"
+              onClick={() => handleHalfStep(1)}
+              disabled={!canStepUp}
+              style={{ width: "80%", minWidth: 0 }}
+            >
+              ⬆️ Nota su
+            </button>
+          </div>
+          {feedback && (
+            <div className={`feedback ${feedback.type}`} style={{ marginTop: "12px" }}>
+              {feedback.message}
+            </div>
+          )}
+        </fieldset>
+      </div>
+
+      {audioUrl && (
+        <fieldset style={{ marginTop: "16px" }}>
+          <legend>Modalità e riproduzione</legend>
           <div className="toggle-row">
-            <p>Modalità</p>
             <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
               <button
                 type="button"
@@ -647,75 +710,17 @@ export default function HomePage(): JSX.Element {
             </div>
           </div>
 
-          {sequence.length > 0 && (
-            <p className="note-display">
-              Sequenza selezionata: {sequenceDisplay}
-            </p>
-          )}
-        </fieldset>
-
-        <fieldset>
-          <legend>Controlli</legend>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            <button
-              className="primary-button"
-              type="button"
-              onClick={handlePlay}
-              disabled={!selectedNote || isRendering}
-            >
-              {isRendering ? "🎹 In preparazione" : "▶️ Avvia"}
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={handleStop}
-              disabled={!audioUrl && !isRendering}
-            >
-              ⏹️ Ferma
-            </button>
+          <div className="player-card" style={{ marginTop: "12px" }}>
+            <audio
+              key={audioUrl}
+              controls
+              autoPlay
+              loop={playMode === "loop"}
+              src={audioUrl ?? undefined}
+              aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
+            />
           </div>
-          <div style={{ marginTop: "12px" }}>
-            <p style={{ margin: "0 0 4px" }}>Trasponi nota iniziale di mezzo tono</p>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <button
-                className="secondary-button"
-                type="button"
-                aria-label="Abbassa nota di mezzo tono"
-                onClick={() => handleHalfStep(-1)}
-                disabled={!canStepDown}
-              >
-                ⬇️ Nota giù
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                aria-label="Alza nota di mezzo tono"
-                onClick={() => handleHalfStep(1)}
-                disabled={!canStepUp}
-              >
-                ⬆️ Nota su
-              </button>
-            </div>
-          </div>
-          {feedback && (
-            <div className={`feedback ${feedback.type}`}>
-              {feedback.message}
-            </div>
-          )}
         </fieldset>
-      </div>
-
-      {audioUrl && (
-        <div className="player-card">
-          <p>{sequenceDescription ? `Ascoltando: ${sequenceDescription}` : "Audio pronto"}</p>
-          <audio
-            key={audioUrl}
-            controls
-            autoPlay
-            loop={playMode === "loop"}
-            src={audioUrl}
-          />
-        </div>
       )}
     </main>
   );
