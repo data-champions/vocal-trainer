@@ -686,39 +686,42 @@ export default function HomePage(): JSX.Element {
         </fieldset>
       </div>
 
-      <fieldset style={{ marginTop: "16px" }}>
-        <legend>Modalità e riproduzione</legend>
-        <div className="toggle-row">
-          
-          <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
-            <button
-              type="button"
-              className={`toggle-option${playMode === "single" ? " active" : ""}`}
-              aria-pressed={playMode === "single"}
-              onClick={() => setPlayMode("single")}
-            >
-              ▶️ Play
-            </button>
-            <button
-              type="button"
-              className={`toggle-option${playMode === "loop" ? " active" : ""}`}
-              aria-pressed={playMode === "loop"}
-              onClick={() => setPlayMode("loop")}
-            >
-              🔁 Ripetizione infinita
-            </button>
+      {audioUrl && (
+        <fieldset style={{ marginTop: "16px" }}>
+          <legend>Modalità e riproduzione</legend>
+          <div className="toggle-row">
+            <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
+              <button
+                type="button"
+                className={`toggle-option${playMode === "single" ? " active" : ""}`}
+                aria-pressed={playMode === "single"}
+                onClick={() => setPlayMode("single")}
+              >
+                ▶️ Play
+              </button>
+              <button
+                type="button"
+                className={`toggle-option${playMode === "loop" ? " active" : ""}`}
+                aria-pressed={playMode === "loop"}
+                onClick={() => setPlayMode("loop")}
+              >
+                🔁 Ripetizione infinita
+              </button>
+            </div>
           </div>
-        </div>
 
+          <div className="player-card" style={{ marginTop: "12px" }}>
             <audio
               key={audioUrl}
               controls
               autoPlay
               loop={playMode === "loop"}
-              src={audioUrl}
+              src={audioUrl ?? undefined}
               aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
             />
-      </fieldset>
+          </div>
+        </fieldset>
+      )}
     </main>
   );
 }
