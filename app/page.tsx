@@ -683,9 +683,9 @@ export default function HomePage(): JSX.Element {
       </div>
 
       <fieldset style={{ marginTop: "16px" }}>
-        <legend>Modalità</legend>
+        <legend>Modalità e riproduzione</legend>
         <div className="toggle-row">
-          <p>Modalità</p>
+          
           <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
             <button
               type="button"
@@ -705,20 +705,16 @@ export default function HomePage(): JSX.Element {
             </button>
           </div>
         </div>
-      </fieldset>
 
-      {audioUrl && (
-        <div className="player-card">
-          <audio
-            key={audioUrl}
-            controls
-            autoPlay
-            loop={playMode === "loop"}
-            src={audioUrl}
-            aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
-          />
-        </div>
-      )}
+            <audio
+              key={audioUrl}
+              controls
+              autoPlay
+              loop={playMode === "loop"}
+              src={audioUrl}
+              aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
+            />
+      </fieldset>
     </main>
   );
 }
