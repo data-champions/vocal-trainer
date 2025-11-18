@@ -634,7 +634,7 @@ export default function HomePage(): JSX.Element {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
               gap: "12px",
               marginTop: "16px"
             }}
@@ -644,8 +644,18 @@ export default function HomePage(): JSX.Element {
               type="button"
               onClick={handlePlay}
               disabled={!selectedNote || isRendering}
+              style={{ width: "80%", minWidth: 0 }}
             >
               {isRendering ? "🎹 In preparazione" : "▶️ Avvia"}
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={handleStop}
+              disabled={!audioUrl && !isRendering}
+              style={{ width: "80%", minWidth: 0 }}
+            >
+              ⏹️ Ferma
             </button>
             <button
               className="secondary-button"
@@ -653,16 +663,9 @@ export default function HomePage(): JSX.Element {
               aria-label="Abbassa nota di mezzo tono"
               onClick={() => handleHalfStep(-1)}
               disabled={!canStepDown}
+              style={{ width: "80%", minWidth: 0 }}
             >
               ⬇️ Nota giù
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={handleStop}
-              disabled={!audioUrl && !isRendering}
-            >
-              ⏹️ Ferma
             </button>
             <button
               className="secondary-button"
@@ -670,6 +673,7 @@ export default function HomePage(): JSX.Element {
               aria-label="Alza nota di mezzo tono"
               onClick={() => handleHalfStep(1)}
               disabled={!canStepUp}
+              style={{ width: "80%", minWidth: 0 }}
             >
               ⬆️ Nota su
             </button>
