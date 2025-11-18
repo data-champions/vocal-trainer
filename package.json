@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "open http://localhost:8501",
     "dev": "next dev -p 8501",
     "build": "next build",
     "start": "next start",
