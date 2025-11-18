@@ -78,12 +78,40 @@ type PianoRendering = {
 };
 
 let toneModulePromise: Promise<ToneModule> | null = null;
+let pianoPreloadPromise: Promise<void> | null = null;
+let pianoSamplesReady = false;
 
 function loadToneModule(): Promise<ToneModule> {
   if (!toneModulePromise) {
     toneModulePromise = import("tone");
   }
   return toneModulePromise;
+}
+
+function preloadPianoSamples(): Promise<void> {
+  if (pianoSamplesReady) {
+    return Promise.resolve();
+  }
+  if (!pianoPreloadPromise) {
+    pianoPreloadPromise = (async () => {
+      const Tone = await loadToneModule();
+      const sampler = new Tone.Sampler({
+        urls: PIANO_SAMPLE_MAP,
+        release: 2,
+        baseUrl: PIANO_SAMPLE_BASE_URL
+      });
+      await sampler.loaded;
+      sampler.dispose();
+      pianoSamplesReady = true;
+    })().catch((error) => {
+      console.error("Errore nel pre-caricamento del pianoforte", error);
+      pianoPreloadPromise = null;
+      throw error;
+    });
+  }
+  return pianoPreloadPromise.then(() => {
+    pianoSamplesReady = true;
+  });
 }
 
 function mixToMono(channels: Float32Array[]): Float32Array {
@@ -112,6 +140,7 @@ async function renderPianoSequence(
     return null;
   }
 
+  await preloadPianoSamples();
   const Tone = await loadToneModule();
   const releaseTail = 1.5;
   const sequenceSpan = notes.length * (durationSeconds + gapSeconds) - gapSeconds;
@@ -262,6 +291,7 @@ export default function HomePage(): JSX.Element {
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
   const [isRendering, setIsRendering] = useState(false);
+  const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
   const generationIdRef = useRef(0);
   const selectedRange = VOCAL_RANGES[vocalRange];
   const rangeBounds = useMemo(() => {
@@ -299,7 +329,10 @@ export default function HomePage(): JSX.Element {
       const requestId = generationIdRef.current + 1;
       generationIdRef.current = requestId;
       setIsRendering(true);
-      setFeedback({ type: "info", message: "Sto preparando un vero pianoforte..." });
+      setFeedback({
+        type: "info",
+        message: isPianoReady ? "Sto preparando un vero pianoforte..." : "Carico i campioni del pianoforte..."
+      });
 
       try {
         const rendering = await renderPianoSequence(generatedSequence, duration, GAP_SECONDS);
@@ -346,7 +379,7 @@ export default function HomePage(): JSX.Element {
         }
       }
     },
-    [noteCount, duration, notationMode, playMode]
+    [noteCount, duration, notationMode, playMode, isPianoReady]
   );
 
   const handleHalfStep = (direction: 1 | -1) => {
@@ -372,6 +405,24 @@ export default function HomePage(): JSX.Element {
       void generateAudioForNote(nextNote);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    preloadPianoSamples()
+      .then(() => {
+        if (!cancelled) {
+          setIsPianoReady(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsPianoReady(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedNote) {
