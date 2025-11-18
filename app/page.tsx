@@ -1,9 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const SAMPLE_RATE = 44_100;
 const GAP_SECONDS = 0.05;
+const PIANO_SAMPLE_BASE_URL = "https://tonejs.github.io/audio/salamander/";
+const PIANO_SAMPLE_MAP = {
+  A0: "A0.mp3",
+  C1: "C1.mp3",
+  "D#1": "Ds1.mp3",
+  "F#1": "Fs1.mp3",
+  A1: "A1.mp3",
+  C2: "C2.mp3",
+  "D#2": "Ds2.mp3",
+  "F#2": "Fs2.mp3",
+  A2: "A2.mp3",
+  C3: "C3.mp3",
+  "D#3": "Ds3.mp3",
+  "F#3": "Fs3.mp3",
+  A3: "A3.mp3",
+  C4: "C4.mp3",
+  "D#4": "Ds4.mp3",
+  "F#4": "Fs4.mp3",
+  A4: "A4.mp3",
+  C5: "C5.mp3",
+  "D#5": "Ds5.mp3",
+  "F#5": "Fs5.mp3",
+  A5: "A5.mp3",
+  C6: "C6.mp3",
+  "D#6": "Ds6.mp3",
+  "F#6": "Fs6.mp3",
+  A6: "A6.mp3",
+  C7: "C7.mp3",
+  "D#7": "Ds7.mp3",
+  "F#7": "Fs7.mp3",
+  A7: "A7.mp3",
+  C8: "C8.mp3"
+} as const;
 
 // Whole steps (2) and half steps (1) for a major scale: T-T-ST-T-T-T-ST
 const MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1];
@@ -36,6 +69,105 @@ const NOTE_TO_ITALIAN: Record<string, string> = {
   "A#": "La#",
   B: "Si"
 };
+
+type ToneModule = typeof import("tone");
+
+type PianoRendering = {
+  samples: Float32Array;
+  sampleRate: number;
+};
+
+let toneModulePromise: Promise<ToneModule> | null = null;
+let pianoPreloadPromise: Promise<void> | null = null;
+let pianoSamplesReady = false;
+
+function loadToneModule(): Promise<ToneModule> {
+  if (!toneModulePromise) {
+    toneModulePromise = import("tone");
+  }
+  return toneModulePromise;
+}
+
+function preloadPianoSamples(): Promise<void> {
+  if (pianoSamplesReady) {
+    return Promise.resolve();
+  }
+  if (!pianoPreloadPromise) {
+    pianoPreloadPromise = (async () => {
+      const Tone = await loadToneModule();
+      const sampler = new Tone.Sampler({
+        urls: PIANO_SAMPLE_MAP,
+        release: 2,
+        baseUrl: PIANO_SAMPLE_BASE_URL
+      });
+      await sampler.loaded;
+      sampler.dispose();
+      pianoSamplesReady = true;
+    })().catch((error) => {
+      console.error("Errore nel pre-caricamento del pianoforte", error);
+      pianoPreloadPromise = null;
+      throw error;
+    });
+  }
+  return pianoPreloadPromise.then(() => {
+    pianoSamplesReady = true;
+  });
+}
+
+function mixToMono(channels: Float32Array[]): Float32Array {
+  if (channels.length === 0) {
+    return new Float32Array(0);
+  }
+  if (channels.length === 1) {
+    return channels[0];
+  }
+  const length = channels[0].length;
+  const mono = new Float32Array(length);
+  channels.forEach((channel) => {
+    for (let i = 0; i < length; i += 1) {
+      mono[i] += channel[i] / channels.length;
+    }
+  });
+  return mono;
+}
+
+async function renderPianoSequence(
+  notes: string[],
+  durationSeconds: number,
+  gapSeconds = GAP_SECONDS
+): Promise<PianoRendering | null> {
+  if (notes.length === 0) {
+    return null;
+  }
+
+  await preloadPianoSamples();
+  const Tone = await loadToneModule();
+  const releaseTail = 1.5;
+  const sequenceSpan = notes.length * (durationSeconds + gapSeconds) - gapSeconds;
+  const offlineDuration = Math.max(sequenceSpan + releaseTail, durationSeconds + releaseTail);
+  const toneBuffer = await Tone.Offline(async () => {
+    const sampler = new Tone.Sampler({
+      urls: PIANO_SAMPLE_MAP,
+      release: 2,
+      baseUrl: PIANO_SAMPLE_BASE_URL
+    }).toDestination();
+    await Tone.loaded();
+
+    let cursor = 0;
+    notes.forEach((note) => {
+      sampler.triggerAttackRelease(note, durationSeconds, cursor, 0.9);
+      cursor += durationSeconds + gapSeconds;
+    });
+  }, offlineDuration);
+
+  const channels = toneBuffer.toArray();
+  if (channels.length === 0) {
+    return null;
+  }
+
+  const samples = mixToMono(channels);
+  return { samples, sampleRate: toneBuffer.sampleRate };
+}
 
 type VocalRangeKey =
   | "soprano"
@@ -112,84 +244,6 @@ function buildSequence(startNote: string, count: number): string[] {
   return [...ascending, ...descending];
 }
 
-function midiFrequency(note: string): number {
-  const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-  const octave = Number(note.slice(-1));
-  const name = note.slice(0, -1);
-  const midiNum = names.indexOf(name) + 12 * (octave + 1);
-  return 440 * 2 ** ((midiNum - 69) / 12);
-}
-
-function createNoteSamples(note: string, durationSeconds: number, sampleRate = SAMPLE_RATE): Float32Array {
-  const length = Math.max(1, Math.floor(sampleRate * durationSeconds));
-  const samples = new Float32Array(length);
-  const freq = midiFrequency(note);
-
-  const attack = Math.max(1, Math.floor(0.02 * sampleRate));
-  const decay = Math.max(1, Math.floor(0.1 * sampleRate));
-  const release = Math.max(1, Math.floor(0.3 * sampleRate));
-  const sustainLevel = 0.6;
-
-  let maxAmp = 0;
-  for (let i = 0; i < length; i += 1) {
-    const t = i / sampleRate;
-    const fundamental = Math.sin(2 * Math.PI * freq * t) * 0.6;
-    const second = Math.sin(2 * Math.PI * 2 * freq * t) * 0.3;
-    const third = Math.sin(2 * Math.PI * 3 * freq * t) * 0.1;
-
-    let envelope = sustainLevel;
-    if (i < attack) {
-      envelope = i / attack;
-    } else if (i < attack + decay) {
-      const progress = (i - attack) / decay;
-      envelope = 1 - (1 - sustainLevel) * progress;
-    } else if (i >= Math.max(length - release, 0)) {
-      const progress = (i - Math.max(length - release, 0)) / release;
-      envelope = sustainLevel * Math.max(1 - progress, 0);
-    }
-
-    const sample = (fundamental + second + third) * envelope;
-    samples[i] = sample;
-    const abs = Math.abs(sample);
-    if (abs > maxAmp) {
-      maxAmp = abs;
-    }
-  }
-
-  if (maxAmp > 0) {
-    for (let i = 0; i < samples.length; i += 1) {
-      samples[i] /= maxAmp;
-    }
-  }
-
-  return samples;
-}
-
-function buildSequenceSamples(notes: string[], duration: number, sampleRate = SAMPLE_RATE, gapSeconds = GAP_SECONDS): Float32Array {
-  if (notes.length === 0) {
-    return new Float32Array(0);
-  }
-
-  const segments = notes.map((note) => createNoteSamples(note, duration, sampleRate));
-  const gapSamples = Math.max(0, Math.floor(gapSeconds * sampleRate));
-  const totalLength = segments.reduce(
-    (acc, segment, idx) => acc + segment.length + (idx < segments.length - 1 ? gapSamples : 0),
-    0
-  );
-  const track = new Float32Array(totalLength);
-
-  let offset = 0;
-  segments.forEach((segment, idx) => {
-    track.set(segment, offset);
-    offset += segment.length;
-    if (gapSamples > 0 && idx < segments.length - 1) {
-      offset += gapSamples;
-    }
-  });
-
-  return track;
-}
-
 function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE, numChannels = 1): ArrayBuffer {
   const bytesPerSample = 2;
   const blockAlign = numChannels * bytesPerSample;
@@ -236,6 +290,9 @@ export default function HomePage(): JSX.Element {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
+  const [isRendering, setIsRendering] = useState(false);
+  const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
+  const generationIdRef = useRef(0);
   const selectedRange = VOCAL_RANGES[vocalRange];
   const rangeBounds = useMemo(() => {
     const startIdx = noteIndex(selectedRange.min);
@@ -259,7 +316,7 @@ export default function HomePage(): JSX.Element {
   const canStepUp =
     currentNoteIndex !== -1 && rangeBounds.endIdx !== -1 && currentNoteIndex < rangeBounds.endIdx;
   const generateAudioForNote = useCallback(
-    (note: string): boolean => {
+    async (note: string): Promise<boolean> => {
       if (!note) {
         return false;
       }
@@ -269,34 +326,60 @@ export default function HomePage(): JSX.Element {
         return false;
       }
 
-      const track = buildSequenceSamples(generatedSequence, duration, SAMPLE_RATE, GAP_SECONDS);
-      if (track.length === 0) {
-        setFeedback({ type: "warning", message: "Nessun audio generato; riprova con una durata maggiore." });
-        return false;
-      }
-
-      const wavBuffer = encodeWav(track, SAMPLE_RATE, 1);
-      const blob = new Blob([wavBuffer], { type: "audio/wav" });
-      const url = URL.createObjectURL(blob);
-      setAudioUrl((prev) => {
-        if (prev) {
-          URL.revokeObjectURL(prev);
-        }
-        return url;
-      });
-
-      const display = generatedSequence.map((sequenceNote) => formatNoteByNotation(sequenceNote, notationMode)).join(", ");
-      setSequenceDescription(display);
+      const requestId = generationIdRef.current + 1;
+      generationIdRef.current = requestId;
+      setIsRendering(true);
       setFeedback({
-        type: "success",
-        message:
-          playMode === "loop"
-            ? "Audio pronto in modalità ripetizione infinita. Premi play sul lettore."
-            : "Audio pronto.  premi play sul lettore."
+        type: "info",
+        message: isPianoReady ? "Sto preparando un vero pianoforte..." : "Carico i campioni del pianoforte..."
       });
-      return true;
+
+      try {
+        const rendering = await renderPianoSequence(generatedSequence, duration, GAP_SECONDS);
+        if (!rendering || rendering.samples.length === 0) {
+          if (generationIdRef.current === requestId) {
+            setFeedback({ type: "warning", message: "Nessun audio generato; riprova con una durata maggiore." });
+          }
+          return false;
+        }
+
+        const wavBuffer = encodeWav(rendering.samples, rendering.sampleRate, 1);
+        const blob = new Blob([wavBuffer], { type: "audio/wav" });
+        const url = URL.createObjectURL(blob);
+        if (generationIdRef.current !== requestId) {
+          URL.revokeObjectURL(url);
+          return false;
+        }
+        setAudioUrl((prev) => {
+          if (prev) {
+            URL.revokeObjectURL(prev);
+          }
+          return url;
+        });
+
+        const display = generatedSequence.map((sequenceNote) => formatNoteByNotation(sequenceNote, notationMode)).join(", ");
+        setSequenceDescription(display);
+        setFeedback({
+          type: "success",
+          message:
+            playMode === "loop"
+              ? "Pianoforte pronto in modalità ripetizione infinita. Premi play sul lettore."
+              : "Pianoforte pronto. Premi play sul lettore."
+        });
+        return true;
+      } catch (error) {
+        console.error("Errore nella generazione del pianoforte", error);
+        if (generationIdRef.current === requestId) {
+          setFeedback({ type: "warning", message: "Errore nella generazione del suono di pianoforte." });
+        }
+        return false;
+      } finally {
+        if (generationIdRef.current === requestId) {
+          setIsRendering(false);
+        }
+      }
     },
-    [noteCount, duration, notationMode, playMode]
+    [noteCount, duration, notationMode, playMode, isPianoReady]
   );
 
   const handleHalfStep = (direction: 1 | -1) => {
@@ -319,9 +402,27 @@ export default function HomePage(): JSX.Element {
     const nextNote = ASCENDING_KEYS[nextIdx];
     setSelectedNote(nextNote);
     if (audioUrl) {
-      generateAudioForNote(nextNote);
+      void generateAudioForNote(nextNote);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    preloadPianoSamples()
+      .then(() => {
+        if (!cancelled) {
+          setIsPianoReady(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsPianoReady(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedNote) {
@@ -341,7 +442,7 @@ export default function HomePage(): JSX.Element {
         fallbackIdx !== -1 ? ASCENDING_KEYS[fallbackIdx] : availableNotes[0] ?? "";
       setSelectedNote(fallbackNote);
       if (fallbackNote && audioUrl) {
-        generateAudioForNote(fallbackNote);
+        void generateAudioForNote(fallbackNote);
       }
     }
   }, [
@@ -405,10 +506,12 @@ export default function HomePage(): JSX.Element {
       setFeedback({ type: "warning", message: "Scegli una nota prima di avviare la riproduzione." });
       return;
     }
-    generateAudioForNote(selectedNote);
+    void generateAudioForNote(selectedNote);
   };
 
   const handleStop = () => {
+    generationIdRef.current += 1;
+    setIsRendering(false);
     setAudioUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -553,10 +656,20 @@ export default function HomePage(): JSX.Element {
         <fieldset>
           <legend>Controlli</legend>
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            <button className="primary-button" type="button" onClick={handlePlay} disabled={!selectedNote}>
-              ▶️ Avvia
+            <button
+              className="primary-button"
+              type="button"
+              onClick={handlePlay}
+              disabled={!selectedNote || isRendering}
+            >
+              {isRendering ? "🎹 In preparazione" : "▶️ Avvia"}
             </button>
-            <button className="secondary-button" type="button" onClick={handleStop} disabled={!audioUrl}>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={handleStop}
+              disabled={!audioUrl && !isRendering}
+            >
               ⏹️ Ferma
             </button>
           </div>
