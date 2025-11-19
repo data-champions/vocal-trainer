@@ -669,15 +669,15 @@ export default function HomePage(): JSX.Element {
     if (!Number.isFinite(startFrequency) || !Number.isFinite(peakFrequency) || startFrequency <= 0) {
       return { min: 30, max: 2000 };
     }
-    let effectiveStart = startFrequency;
+    const effectiveStart = startFrequency;
     let effectiveEnd = peakFrequency;
     if (effectiveEnd - effectiveStart < 1) {
       effectiveEnd = effectiveStart + 1;
     }
     const span = effectiveEnd - effectiveStart;
-    let toleranceBound = 50;
-    let lowerBound = (effectiveStart - span / 2) - toleranceBound;
-    let upperBound = (effectiveEnd + span / 2) + toleranceBound;
+    const toleranceBound = 50;
+    const lowerBound = (effectiveStart - span / 2) - toleranceBound;
+    const upperBound = (effectiveEnd + span / 2) + toleranceBound;
 
     return { min: lowerBound, max: upperBound };
   }, [selectedNote, sequenceFrequencyBounds.min, sequenceFrequencyBounds.max]);
