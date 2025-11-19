@@ -768,7 +768,7 @@ export default function HomePage(): JSX.Element {
     const upperBound = chartFrequencyBounds.max;
     return {
       responsive: true,
-      animation: false,
+      animation: false as const,
       maintainAspectRatio: false,
       scales: {
         x: {
