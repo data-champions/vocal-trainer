@@ -1,6 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  Tooltip,
+  Legend
+} from "chart.js";
+import { PitchDetector } from "pitchy";
+
+ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
 
 const SAMPLE_RATE = 44_100;
 const GAP_SECONDS = 0.05;
@@ -40,6 +53,9 @@ const PIANO_SAMPLE_MAP = {
 
 // Whole steps (2) and half steps (1) for a major scale: T-T-ST-T-T-T-ST
 const MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1];
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
+const MIDI_A0 = 21;
+const MIDI_C8 = 108;
 
 const PIANO_KEYS = [
   "C8",
@@ -87,6 +103,7 @@ function loadToneModule(): Promise<ToneModule> {
   }
   return toneModulePromise;
 }
+
 
 function preloadPianoSamples(): Promise<void> {
   if (pianoSamplesReady) {
@@ -195,6 +212,11 @@ type Feedback =
   | { type: "success" | "info" | "warning"; message: string }
   | null;
 
+type PitchSample = {
+  pitch: number | null;
+  clarity: number;
+};
+
 function removeDigits(note: string): string {
   return note.replace(/\d/g, "");
 }
@@ -245,6 +267,24 @@ function buildSequence(startNote: string, count: number): string[] {
   return [...ascending, ...descending];
 }
 
+function midiFrequency(note: string): number {
+  const octave = Number(note.slice(-1));
+  const name = note.slice(0, -1);
+  const midiNum = NOTE_NAMES.indexOf(name as (typeof NOTE_NAMES)[number]) + 12 * (octave + 1);
+  return 440 * 2 ** ((midiNum - 69) / 12);
+}
+
+function frequencyToNearestNoteName(frequency: number | null): string | null {
+  if (!frequency || !Number.isFinite(frequency) || frequency <= 0) {
+    return null;
+  }
+  const midiValue = Math.round(69 + 12 * Math.log2(frequency / 440));
+  const clampedMidi = Math.min(Math.max(midiValue, MIDI_A0), MIDI_C8);
+  const noteName = NOTE_NAMES[((clampedMidi % 12) + 12) % 12];
+  const octave = Math.floor(clampedMidi / 12) - 1;
+  return `${noteName}${octave}`;
+}
+
 function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE, numChannels = 1): ArrayBuffer {
   const bytesPerSample = 2;
   const blockAlign = numChannels * bytesPerSample;
@@ -283,17 +323,40 @@ function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE, numChannels 
 
 export default function HomePage(): JSX.Element {
   const [notationMode, setNotationMode] = useState<"italian" | "english">("italian");
-  const [vocalRange, setVocalRange] = useState<VocalRangeKey>("mezzo-soprano");
+  const [vocalRange, setVocalRange] = useState<VocalRangeKey>("tenor");
   const [selectedNote, setSelectedNote] = useState("");
   const [duration, setDuration] = useState(1);
   const [noteCount, setNoteCount] = useState(3);
-  const [playMode, setPlayMode] = useState<"single" | "loop">("single");
+  const [playMode, setPlayMode] = useState<"single" | "loop">("loop");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
   const [isRendering, setIsRendering] = useState(false);
+  const [voiceFrequency, setVoiceFrequency] = useState<number | null>(null);
+  const [currentTargetFrequency, setCurrentTargetFrequency] = useState<number | null>(null);
+  const [currentTargetNote, setCurrentTargetNote] = useState("");
+  const [pitchSamples, setPitchSamples] = useState<PitchSample[]>([]);
+  const [targetHistory, setTargetHistory] = useState<(number | null)[]>([]);
+  const [pitchStatus, setPitchStatus] = useState<"idle" | "starting" | "ready" | "error">("idle");
+  const [pitchError, setPitchError] = useState<string | null>(null);
+  const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
+  const [noiseThreshold, setNoiseThreshold] = useState(0.8);
   const generationIdRef = useRef(0);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const playbackScheduleRef = useRef<{ note: string; start: number; end: number }[] | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const pitchDetectorRef = useRef<PitchDetector<Float32Array> | null>(null);
+  const pitchRafRef = useRef<number | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const analyserBufferRef = useRef<Float32Array | null>(null);
+  const voiceFrequencyRef = useRef<number | null>(null);
+  const noiseThresholdRef = useRef(noiseThreshold);
+  const targetFrequencyRef = useRef<number | null>(null);
+  const currentTargetNoteRef = useRef<string>("");
+  const selectedNoteRef = useRef<string>("");
+  const lastScheduleNoteRef = useRef<string | null>(null);
   const selectedRange = VOCAL_RANGES[vocalRange];
   const rangeBounds = useMemo(() => {
     const startIdx = noteIndex(selectedRange.min);
@@ -367,6 +430,14 @@ export default function HomePage(): JSX.Element {
               ? "Pianoforte pronto in modalità ripetizione infinita. Premi play sul lettore."
               : "Pianoforte pronto. Premi play sul lettore."
         });
+        const segments = generatedSequence.map((sequenceNote, idx) => {
+          const start = idx * (duration + GAP_SECONDS);
+          return { note: sequenceNote, start, end: start + duration };
+        });
+        playbackScheduleRef.current = segments;
+        lastScheduleNoteRef.current = null;
+        setCurrentTargetFrequency(null);
+        setCurrentTargetNote("");
         return true;
       } catch (error) {
         console.error("Errore nella generazione del pianoforte", error);
@@ -383,29 +454,32 @@ export default function HomePage(): JSX.Element {
     [noteCount, duration, notationMode, playMode, isPianoReady]
   );
 
-  const handleHalfStep = (direction: 1 | -1) => {
-    if (!selectedNote) {
-      return;
-    }
-    const idx = noteIndex(selectedNote);
-    if (idx === -1) {
-      return;
-    }
-    const nextIdx = idx + direction;
-    if (
-      nextIdx < 0 ||
-      nextIdx >= ASCENDING_KEYS.length ||
-      (rangeBounds.startIdx !== -1 && nextIdx < rangeBounds.startIdx) ||
-      (rangeBounds.endIdx !== -1 && nextIdx > rangeBounds.endIdx)
-    ) {
-      return;
-    }
-    const nextNote = ASCENDING_KEYS[nextIdx];
-    setSelectedNote(nextNote);
-    if (audioUrl) {
-      void generateAudioForNote(nextNote);
-    }
-  };
+  const handleHalfStep = useCallback(
+    (direction: 1 | -1) => {
+      if (!selectedNote) {
+        return;
+      }
+      const idx = noteIndex(selectedNote);
+      if (idx === -1) {
+        return;
+      }
+      const nextIdx = idx + direction;
+      if (
+        nextIdx < 0 ||
+        nextIdx >= ASCENDING_KEYS.length ||
+        (rangeBounds.startIdx !== -1 && nextIdx < rangeBounds.startIdx) ||
+        (rangeBounds.endIdx !== -1 && nextIdx > rangeBounds.endIdx)
+      ) {
+        return;
+      }
+      const nextNote = ASCENDING_KEYS[nextIdx];
+      setSelectedNote(nextNote);
+      if (audioUrl) {
+        void generateAudioForNote(nextNote);
+      }
+    },
+    [selectedNote, rangeBounds.startIdx, rangeBounds.endIdx, audioUrl, generateAudioForNote]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -424,6 +498,26 @@ export default function HomePage(): JSX.Element {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    voiceFrequencyRef.current = voiceFrequency;
+  }, [voiceFrequency]);
+
+  useEffect(() => {
+    targetFrequencyRef.current = currentTargetFrequency;
+  }, [currentTargetFrequency]);
+
+  useEffect(() => {
+    currentTargetNoteRef.current = currentTargetNote;
+  }, [currentTargetNote]);
+
+  useEffect(() => {
+    noiseThresholdRef.current = noiseThreshold;
+  }, [noiseThreshold]);
+
+  useEffect(() => {
+    selectedNoteRef.current = selectedNote;
+  }, [selectedNote]);
 
   useEffect(() => {
     if (!selectedNote) {
@@ -464,6 +558,25 @@ export default function HomePage(): JSX.Element {
     };
   }, [audioUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (pitchRafRef.current) {
+        cancelAnimationFrame(pitchRafRef.current);
+      }
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((track) => track.stop());
+        micStreamRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => undefined);
+        audioContextRef.current = null;
+      }
+      pitchDetectorRef.current = null;
+      analyserRef.current = null;
+      analyserBufferRef.current = null;
+    };
+  }, []);
+
   const maxNotes = useMemo(() => {
     if (!selectedNote) {
       return 20;
@@ -479,6 +592,41 @@ export default function HomePage(): JSX.Element {
     }
   }, [maxNotes, noteCount]);
 
+  useEffect(() => {
+    let rafId: number;
+    const updateTarget = () => {
+      const audioEl = audioElementRef.current;
+      const schedule = playbackScheduleRef.current;
+      const applyTarget = (note: string | null) => {
+        const frequency = note ? midiFrequency(note) : null;
+        if (targetFrequencyRef.current !== frequency) {
+          setCurrentTargetFrequency(frequency);
+        }
+        const nextNote = note ?? "";
+        if (currentTargetNoteRef.current !== nextNote) {
+          setCurrentTargetNote(nextNote);
+        }
+      };
+      if (!audioEl || !schedule || schedule.length === 0) {
+        lastScheduleNoteRef.current = null;
+        applyTarget(selectedNoteRef.current || null);
+      } else {
+        const time = audioEl.currentTime;
+        const segment = schedule.find((entry) => time >= entry.start && time <= entry.end);
+        if (segment) {
+          lastScheduleNoteRef.current = segment.note;
+          applyTarget(segment.note);
+        } else {
+          const fallbackNote = lastScheduleNoteRef.current ?? selectedNoteRef.current ?? null;
+          applyTarget(fallbackNote);
+        }
+      }
+      rafId = requestAnimationFrame(updateTarget);
+    };
+    rafId = requestAnimationFrame(updateTarget);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
   const sequence = useMemo(() => {
     if (!selectedNote) {
       return [];
@@ -492,6 +640,165 @@ export default function HomePage(): JSX.Element {
     }
     return sequence.map((note) => formatNoteByNotation(note, notationMode)).join(", ");
   }, [sequence, notationMode]);
+  const hasAudio = Boolean(audioUrl);
+
+  const selectedRangeFrequencies = useMemo(() => {
+    return {
+      min: midiFrequency(selectedRange.min),
+      max: midiFrequency(selectedRange.max)
+    };
+  }, [selectedRange.min, selectedRange.max]);
+
+  const sequenceFrequencyBounds = useMemo(() => {
+    if (sequence.length === 0) {
+      return {
+        min: selectedRangeFrequencies.min,
+        max: selectedRangeFrequencies.max
+      };
+    }
+    const frequencies = sequence.map((note) => midiFrequency(note));
+    return {
+      min: Math.min(...frequencies),
+      max: Math.max(...frequencies)
+    };
+  }, [sequence, selectedRangeFrequencies.min, selectedRangeFrequencies.max]);
+
+  const chartFrequencyBounds = useMemo(() => {
+    const startFrequency = selectedNote ? midiFrequency(selectedNote) : sequenceFrequencyBounds.min;
+    const peakFrequency = Math.max(sequenceFrequencyBounds.max, startFrequency);
+    if (!Number.isFinite(startFrequency) || !Number.isFinite(peakFrequency) || startFrequency <= 0) {
+      return { min: 30, max: 2000 };
+    }
+    const effectiveStart = startFrequency;
+    let effectiveEnd = peakFrequency;
+    if (effectiveEnd - effectiveStart < 1) {
+      effectiveEnd = effectiveStart + 1;
+    }
+    const span = effectiveEnd - effectiveStart;
+    const toleranceBound = 50;
+    const lowerBound = (effectiveStart - span / 2) - toleranceBound;
+    const upperBound = (effectiveEnd + span / 2) + toleranceBound;
+
+    return { min: lowerBound, max: upperBound };
+  }, [selectedNote, sequenceFrequencyBounds.min, sequenceFrequencyBounds.max]);
+
+  const filteredPitchHistory = useMemo(() => {
+    return pitchSamples.map((sample) => {
+      if (sample.pitch === null) {
+        return null;
+      }
+      return sample.clarity >= noiseThreshold ? sample.pitch : null;
+    });
+  }, [pitchSamples, noiseThreshold]);
+
+  const currentTargetNoteLabel = useMemo(() => {
+    if (!currentTargetNote) {
+      return "—";
+    }
+    return formatNoteByNotation(currentTargetNote, notationMode);
+  }, [currentTargetNote, notationMode]);
+
+  const currentVoiceNoteLabel = useMemo(() => {
+    const noteName = frequencyToNearestNoteName(voiceFrequency);
+    if (!noteName) {
+      return "—";
+    }
+    return formatNoteByNotation(noteName, notationMode);
+  }, [voiceFrequency, notationMode]);
+
+  const pitchComparisonLabel = useMemo(() => {
+    if (!audioUrl || !currentTargetFrequency || pitchStatus !== "ready") {
+      return null;
+    }
+    if (!voiceFrequency || voiceFrequency <= 0 || currentTargetFrequency <= 0) {
+      return null;
+    }
+    const diffHz = voiceFrequency - currentTargetFrequency;
+    if (Math.abs(diffHz) <= 10) {
+      return "✅";
+    }
+    return diffHz > 0 ? "⬇️" : "⬆️" ;
+  }, [audioUrl, currentTargetFrequency, voiceFrequency, pitchStatus]);
+
+  const pitchStatusLabel = useMemo(() => {
+    switch (pitchStatus) {
+      case "ready":
+        return "Microfono attivo";
+      case "starting":
+        return "Attivazione microfono...";
+      case "error":
+        return pitchError ?? "Errore microfono";
+      default:
+        return "Microfono inattivo";
+    }
+  }, [pitchStatus, pitchError]);
+
+  const pitchChartData = useMemo(() => {
+    const maxLength = Math.max(filteredPitchHistory.length, targetHistory.length);
+    const labels = Array.from({ length: maxLength }, (_, index) => index);
+    const voicedData = labels.map((_, idx) => filteredPitchHistory[idx] ?? null);
+    const targetData = labels.map((_, idx) => targetHistory[idx] ?? null);
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Nota bersaglio (Hz)",
+          data: targetData,
+          borderColor: "rgba(80, 220, 120, 1)",
+          backgroundColor: "rgba(80, 220, 120, 0.15)",
+          pointRadius: 0,
+          tension: 0.2,
+          spanGaps: true
+        },
+        {
+          label: "Voce (Hz)",
+          data: voicedData,
+          borderColor: "rgba(255, 214, 102, 1)",
+          backgroundColor: "rgba(255, 214, 102, 0.25)",
+          pointRadius: 0,
+          tension: 0.35,
+          spanGaps: true
+        }
+      ]
+    };
+  }, [filteredPitchHistory, targetHistory]);
+
+  const pitchChartOptions = useMemo(() => {
+    const lowerBound = chartFrequencyBounds.min;
+    const upperBound = chartFrequencyBounds.max;
+    return {
+      responsive: true,
+      animation: false as const,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          display: false
+        },
+        y: {
+          min: lowerBound,
+          max: upperBound,
+          title: {
+            display: true,
+            text: "Frequenza (Hz)",
+            color: "#cbd5f5",
+            font: {
+              size: 12
+            }
+          },
+          ticks: {
+            color: "#ccc"
+          },
+          grid: {
+            color: "rgba(255,255,255,0.1)"
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false }
+      }
+    };
+  }, [chartFrequencyBounds.min, chartFrequencyBounds.max]);
 
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
@@ -513,6 +820,13 @@ export default function HomePage(): JSX.Element {
   const handleStop = () => {
     generationIdRef.current += 1;
     setIsRendering(false);
+    playbackScheduleRef.current = null;
+    setCurrentTargetFrequency(null);
+    setCurrentTargetNote("");
+    setPitchSamples([]);
+    setTargetHistory([]);
+    setPitchOutOfRange(false);
+    lastScheduleNoteRef.current = null;
     setAudioUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -522,6 +836,133 @@ export default function HomePage(): JSX.Element {
     setSequenceDescription("");
     setFeedback({ type: "info", message: "Riproduzione interrotta." });
   };
+
+  const pausePlayback = useCallback(() => {
+    const audioElement = audioElementRef.current;
+    if (audioElement && !audioElement.paused) {
+      audioElement.pause();
+    }
+  }, []);
+
+  const startPitchDetection = useCallback(async () => {
+    if (pitchStatus === "starting" || pitchStatus === "ready") {
+      return;
+    }
+    if (typeof window === "undefined" || typeof navigator === "undefined") {
+      return;
+    }
+    try {
+      setPitchStatus("starting");
+      setPitchError(null);
+      if (!navigator.mediaDevices) {
+        throw new Error("Media devices non disponibili");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+      const win = window as typeof window & { webkitAudioContext?: typeof AudioContext };
+      const AudioCtx = win.AudioContext ?? win.webkitAudioContext;
+      if (!AudioCtx) {
+        throw new Error("AudioContext non supportato");
+      }
+      const audioContext = new AudioCtx();
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      analyserRef.current = analyser;
+      analyserBufferRef.current = new Float32Array(analyser.fftSize);
+      pitchDetectorRef.current = PitchDetector.forFloat32Array(analyser.fftSize);
+      source.connect(analyser);
+      setPitchSamples([]);
+      setTargetHistory([]);
+      setVoiceFrequency(null);
+      setPitchOutOfRange(false);
+
+      const detectPitch = () => {
+        if (!analyserRef.current || !pitchDetectorRef.current || !analyserBufferRef.current || !audioContextRef.current) {
+          pitchRafRef.current = requestAnimationFrame(detectPitch);
+          return;
+        }
+        analyserRef.current.getFloatTimeDomainData(analyserBufferRef.current);
+        const [pitch, clarity] = pitchDetectorRef.current.findPitch(analyserBufferRef.current, audioContextRef.current.sampleRate);
+        const clarityThreshold = noiseThresholdRef.current;
+        const voiceCandidate = pitch > 30 && pitch < 2000 ? pitch : null;
+        const passesThreshold = clarity >= clarityThreshold && voiceCandidate !== null;
+        const voiceValue = passesThreshold ? voiceCandidate : null;
+        const targetValue = targetFrequencyRef.current ?? null;
+
+        if (voiceValue !== null) {
+          setVoiceFrequency(voiceValue);
+          voiceFrequencyRef.current = voiceValue;
+          const inRange = voiceValue >= selectedRangeFrequencies.min && voiceValue <= selectedRangeFrequencies.max;
+          setPitchOutOfRange(!inRange);
+        } else {
+          setVoiceFrequency(null);
+          voiceFrequencyRef.current = null;
+          setPitchOutOfRange(false);
+        }
+
+        setPitchSamples((prev) => {
+          const next = [...prev, { pitch: voiceCandidate, clarity }];
+          const limit = 150;
+          return next.length > limit ? next.slice(next.length - limit) : next;
+        });
+        setTargetHistory((prev) => {
+          const next = [...prev, targetValue];
+          const limit = 150;
+          return next.length > limit ? next.slice(next.length - limit) : next;
+        });
+
+        pitchRafRef.current = requestAnimationFrame(detectPitch);
+      };
+
+      setPitchOutOfRange(false);
+      setPitchStatus("ready");
+      pitchRafRef.current = requestAnimationFrame(detectPitch);
+    } catch (error) {
+      console.error("Impossibile avviare la pitch detection", error);
+      setPitchStatus("error");
+      setPitchError("Consenti l'accesso al microfono per rilevare la voce.");
+    }
+  }, [pitchStatus, selectedRangeFrequencies.min, selectedRangeFrequencies.max]);
+
+  useEffect(() => {
+    if (pitchStatus === "idle") {
+      void startPitchDetection();
+    }
+  }, [pitchStatus, startPitchDetection]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName ?? "";
+      const isEditable =
+        target?.isContentEditable ||
+        tagName === "INPUT" ||
+        tagName === "SELECT" ||
+        tagName === "TEXTAREA";
+      if (isEditable) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        handleHalfStep(1);
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        handleHalfStep(-1);
+      } else if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        pausePlayback();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleHalfStep, pausePlayback]);
 
   return (
     <main>
@@ -686,42 +1127,115 @@ export default function HomePage(): JSX.Element {
         </fieldset>
       </div>
 
-      {audioUrl && (
-        <fieldset style={{ marginTop: "16px" }}>
-          <legend>Modalità e riproduzione</legend>
-          <div className="toggle-row">
-            <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
-              <button
-                type="button"
-                className={`toggle-option${playMode === "single" ? " active" : ""}`}
-                aria-pressed={playMode === "single"}
-                onClick={() => setPlayMode("single")}
-              >
-                ▶️ Play
-              </button>
-              <button
-                type="button"
-                className={`toggle-option${playMode === "loop" ? " active" : ""}`}
-                aria-pressed={playMode === "loop"}
-                onClick={() => setPlayMode("loop")}
-              >
-                🔁 Ripetizione infinita
-              </button>
-            </div>
+      <section className="player-card" style={{ marginTop: "16px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div>
+            <h2 style={{ margin: 0 }}>Rilevamento intonazione</h2>
+            <p style={{ margin: 0, fontSize: "0.9rem", opacity: 0.8 }}>{pitchStatusLabel}</p>
           </div>
+          {pitchStatus === "ready" ? (
+            <span style={{ fontWeight: 600 }}>🎙️ Microfono attivo</span>
+          ) : (
+            <button
+              className={`secondary-button microphone-button microphone-button--error`}
+              type="button"
+              onClick={startPitchDetection}
+              disabled={pitchStatus === "starting"}
+            >
+              {pitchStatus === "starting" ? "Attivazione..." : "Abilita microfono"}
+            </button>
+          )}
+        </div>
+        {pitchError && (
+          <p className="error-text" style={{ marginTop: "8px" }}>
+            {pitchError}
+          </p>
+        )}
+        <label className="noise-filter-control" style={{ width: "100%", marginTop: pitchError ? "4px" : "12px" }}>
+          <span>Filtro rumore microfono: {noiseThreshold.toFixed(2)}</span>
+          <input
+            type="range"
+            min={0.05}
+            max={0.98}
+            step={0.01}
+            value={noiseThreshold}
+            onChange={(event) => setNoiseThreshold(Number(event.target.value))}
+          />
+        </label>
+        <div
+          style={{
+            fontSize: "2.4rem",
+            marginTop: "12px",
+            opacity: pitchComparisonLabel ? 1 : 0.4
+          }}
+        >
+          {pitchComparisonLabel ?? "🎵"}
+        </div>
+        <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
+        <p style={{ margin: "0 0 12px" }}>Nota voce: {currentVoiceNoteLabel}</p>
+        <div style={{ height: "180px" }}>
+          <Line data={pitchChartData} options={pitchChartOptions} />
+        </div>
+        <div className="pitch-warning-slot">
+          {pitchOutOfRange && (
+            <button
+              type="button"
+              className="secondary-button flash-button"
+              style={{
+                backgroundColor: "#ff6b6b",
+                borderColor: "#ff6b6b",
+                color: "#fff"
+              }}
+            >
+            Pitch fuori dai limiti, controlla l&apos;estensione vocale
+            </button>
+          )}
+        </div>
+      </section>
 
-          <div className="player-card" style={{ marginTop: "12px" }}>
+      <fieldset className={!hasAudio ? "fieldset-disabled" : undefined} style={{ marginTop: "16px" }}>
+        <legend>Modalità e riproduzione</legend>
+        <div className="toggle-row">
+          <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
+            <button
+              type="button"
+              className={`toggle-option${playMode === "single" ? " active" : ""}`}
+              aria-pressed={playMode === "single"}
+              onClick={() => setPlayMode("single")}
+              disabled={!hasAudio}
+            >
+              ▶️ Play
+            </button>
+            <button
+              type="button"
+              className={`toggle-option${playMode === "loop" ? " active" : ""}`}
+              aria-pressed={playMode === "loop"}
+              onClick={() => setPlayMode("loop")}
+              disabled={!hasAudio}
+            >
+              🔁 Ripetizione infinita
+            </button>
+          </div>
+        </div>
+
+        <div className="player-card" style={{ marginTop: "12px" }}>
+          {hasAudio ? (
             <audio
-              key={audioUrl}
+              key={audioUrl ?? "audio-player"}
+              ref={audioElementRef}
               controls
               autoPlay
               loop={playMode === "loop"}
               src={audioUrl ?? undefined}
               aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
             />
-          </div>
-        </fieldset>
-      )}
+          ) : (
+            <div className="player-placeholder">
+              🎵 Scegli una nota e premi &quot;Avvia&quot; per ascoltare la riproduzione.
+            </div>
+          )}
+        </div>
+      </fieldset>
     </main>
   );
 }
