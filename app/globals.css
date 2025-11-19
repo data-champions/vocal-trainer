@@ -127,6 +127,44 @@ button {
   background: rgba(148, 163, 184, 0.25);
 }
 
+.pitch-warning-slot {
+  min-height: 56px;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fieldset-disabled {
+  opacity: 0.65;
+}
+
+.player-placeholder {
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.4);
+  text-align: center;
+  font-size: 0.95rem;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.microphone-button {
+  min-width: 0;
+  padding-inline: 16px;
+}
+
+.microphone-button--error {
+  border: 1px solid rgba(248, 113, 113, 0.8);
+  background: rgba(248, 113, 113, 0.18);
+  color: #fee2e2;
+}
+
+.microphone-button--error:hover {
+  background: rgba(248, 113, 113, 0.28);
+}
+
 .toggle-row {
   display: flex;
   align-items: center;
