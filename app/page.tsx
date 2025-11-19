@@ -356,6 +356,7 @@ export default function HomePage(): JSX.Element {
   const targetFrequencyRef = useRef<number | null>(null);
   const currentTargetNoteRef = useRef<string>("");
   const selectedNoteRef = useRef<string>("");
+  const lastScheduleNoteRef = useRef<string | null>(null);
   const selectedRange = VOCAL_RANGES[vocalRange];
   const rangeBounds = useMemo(() => {
     const startIdx = noteIndex(selectedRange.min);
@@ -434,6 +435,7 @@ export default function HomePage(): JSX.Element {
           return { note: sequenceNote, start, end: start + duration };
         });
         playbackScheduleRef.current = segments;
+        lastScheduleNoteRef.current = null;
         setCurrentTargetFrequency(null);
         setCurrentTargetNote("");
         return true;
@@ -595,35 +597,28 @@ export default function HomePage(): JSX.Element {
     const updateTarget = () => {
       const audioEl = audioElementRef.current;
       const schedule = playbackScheduleRef.current;
+      const applyTarget = (note: string | null) => {
+        const frequency = note ? midiFrequency(note) : null;
+        if (targetFrequencyRef.current !== frequency) {
+          setCurrentTargetFrequency(frequency);
+        }
+        const nextNote = note ?? "";
+        if (currentTargetNoteRef.current !== nextNote) {
+          setCurrentTargetNote(nextNote);
+        }
+      };
       if (!audioEl || !schedule || schedule.length === 0) {
-        const fallbackNote = selectedNoteRef.current;
-        const fallbackFreq = fallbackNote ? midiFrequency(fallbackNote) : null;
-        if (targetFrequencyRef.current !== fallbackFreq) {
-          setCurrentTargetFrequency(fallbackFreq);
-        }
-        if ((currentTargetNoteRef.current || "") !== (fallbackNote ?? "")) {
-          setCurrentTargetNote(fallbackNote ?? "");
-        }
+        lastScheduleNoteRef.current = null;
+        applyTarget(selectedNoteRef.current || null);
       } else {
         const time = audioEl.currentTime;
         const segment = schedule.find((entry) => time >= entry.start && time <= entry.end);
         if (segment) {
-          const freq = midiFrequency(segment.note);
-          if (targetFrequencyRef.current !== freq) {
-            setCurrentTargetFrequency(freq);
-          }
-          if (currentTargetNoteRef.current !== segment.note) {
-            setCurrentTargetNote(segment.note);
-          }
+          lastScheduleNoteRef.current = segment.note;
+          applyTarget(segment.note);
         } else {
-          const fallbackNote = selectedNoteRef.current;
-          const fallbackFreq = fallbackNote ? midiFrequency(fallbackNote) : null;
-          if (targetFrequencyRef.current !== fallbackFreq) {
-            setCurrentTargetFrequency(fallbackFreq);
-          }
-          if ((currentTargetNoteRef.current || "") !== (fallbackNote ?? "")) {
-            setCurrentTargetNote(fallbackNote ?? "");
-          }
+          const fallbackNote = lastScheduleNoteRef.current ?? selectedNoteRef.current ?? null;
+          applyTarget(fallbackNote);
         }
       }
       rafId = requestAnimationFrame(updateTarget);
@@ -680,27 +675,9 @@ export default function HomePage(): JSX.Element {
       effectiveEnd = effectiveStart + 1;
     }
     const span = effectiveEnd - effectiveStart;
-    let lowerBound = effectiveStart - span / 2;
-    let upperBound = effectiveEnd + span / 2;
-
-    if (lowerBound < 30) {
-      const shift = 30 - lowerBound;
-      lowerBound += shift;
-      upperBound += shift;
-    }
-    if (upperBound > 2000) {
-      const shift = upperBound - 2000;
-      lowerBound -= shift;
-      upperBound -= shift;
-    }
-
-    lowerBound = Math.max(30, lowerBound);
-    upperBound = Math.min(2000, upperBound);
-    if (upperBound - lowerBound < 20) {
-      const midpoint = (upperBound + lowerBound) / 2;
-      lowerBound = Math.max(30, midpoint - 10);
-      upperBound = Math.min(2000, midpoint + 10);
-    }
+    let toleranceBound = 50;
+    let lowerBound = (effectiveStart - span / 2) - toleranceBound;
+    let upperBound = (effectiveEnd + span / 2) + toleranceBound;
 
     return { min: lowerBound, max: upperBound };
   }, [selectedNote, sequenceFrequencyBounds.min, sequenceFrequencyBounds.max]);
@@ -730,23 +707,17 @@ export default function HomePage(): JSX.Element {
   }, [voiceFrequency, notationMode]);
 
   const pitchComparisonLabel = useMemo(() => {
-    if (!audioUrl) {
-      return "Genera una sequenza per allenarti";
+    if (!audioUrl || !currentTargetFrequency || pitchStatus !== "ready") {
+      return null;
     }
-    if (!currentTargetFrequency) {
-      return pitchStatus === "ready" ? "In ascolto del pianoforte..." : "Attiva il microfono";
+    if (!voiceFrequency || voiceFrequency <= 0 || currentTargetFrequency <= 0) {
+      return null;
     }
-    if (!voiceFrequency) {
-      return "Canta per confrontare";
+    const diffHz = voiceFrequency - currentTargetFrequency;
+    if (Math.abs(diffHz) <= 10) {
+      return "✅";
     }
-    if (voiceFrequency <= 0 || currentTargetFrequency <= 0) {
-      return "Segnale non valido";
-    }
-    const diff = 1200 * Math.log2(voiceFrequency / currentTargetFrequency);
-    if (Math.abs(diff) < 25) {
-      return "Bravo!";
-    }
-    return diff > 0 ? "Più acuto" : "Più grave";
+    return diffHz > 0 ? "⬇️" : "⬆️" ;
   }, [audioUrl, currentTargetFrequency, voiceFrequency, pitchStatus]);
 
   const pitchStatusLabel = useMemo(() => {
@@ -855,6 +826,7 @@ export default function HomePage(): JSX.Element {
     setPitchSamples([]);
     setTargetHistory([]);
     setPitchOutOfRange(false);
+    lastScheduleNoteRef.current = null;
     setAudioUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -1190,7 +1162,15 @@ export default function HomePage(): JSX.Element {
             onChange={(event) => setNoiseThreshold(Number(event.target.value))}
           />
         </label>
-        <p style={{ fontWeight: 600, margin: "12px 0 4px" }}>{pitchComparisonLabel}</p>
+        <div
+          style={{
+            fontSize: "2.4rem",
+            marginTop: "12px",
+            opacity: pitchComparisonLabel ? 1 : 0.4
+          }}
+        >
+          {pitchComparisonLabel ?? "🎵"}
+        </div>
         <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
         <p style={{ margin: "0 0 12px" }}>Nota voce: {currentVoiceNoteLabel}</p>
         <div style={{ height: "180px" }}>
