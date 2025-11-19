@@ -11,8 +11,11 @@
     "prepare": "husky install"
   },
   "dependencies": {
+    "chart.js": "^4.5.1",
     "next": "14.2.12",
+    "pitchy": "^4.1.0",
     "react": "18.3.1",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "18.3.1",
     "tone": "^15.1.22"
   },
