@@ -342,7 +342,7 @@ export default function HomePage(): JSX.Element {
   const [pitchError, setPitchError] = useState<string | null>(null);
   const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
-  const [noiseThreshold, setNoiseThreshold] = useState(45);
+  const [noiseThreshold, setNoiseThreshold] = useState(30);
   const [voiceDetected, setVoiceDetected] = useState(false);
   const pitchChartContainerRef = useRef<HTMLDivElement | null>(null);
   const pitchChartRef = useRef<uPlot | null>(null);
@@ -356,6 +356,8 @@ export default function HomePage(): JSX.Element {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const analyserBufferRef = useRef<Float32Array | null>(null);
   const lastSplLogRef = useRef(0);
+  const outOfRangeAccumRef = useRef(0);
+  const lastPitchTimestampRef = useRef<number | null>(null);
   const voiceFrequencyRef = useRef<number | null>(null);
   const noiseThresholdRef = useRef(noiseThreshold);
   const targetFrequencyRef = useRef<number | null>(null);
@@ -857,6 +859,8 @@ export default function HomePage(): JSX.Element {
     setPitchSamples([]);
     setTargetHistory([]);
     setPitchOutOfRange(false);
+    outOfRangeAccumRef.current = 0;
+    lastPitchTimestampRef.current = null;
     setVoiceDetected(false);
     lastScheduleNoteRef.current = null;
     setAudioUrl((prev) => {
@@ -923,12 +927,18 @@ export default function HomePage(): JSX.Element {
       setVoiceFrequency(null);
       setVoiceDetected(false);
       setPitchOutOfRange(false);
+      outOfRangeAccumRef.current = 0;
+      lastPitchTimestampRef.current = null;
 
       const detectPitch = () => {
         if (!analyserRef.current || !pitchDetectorRef.current || !analyserBufferRef.current || !audioContextRef.current) {
           pitchRafRef.current = requestAnimationFrame(detectPitch);
           return;
         }
+        const now = performance.now();
+        const lastTick = lastPitchTimestampRef.current ?? now;
+        const deltaMs = now - lastTick;
+        lastPitchTimestampRef.current = now;
         analyserRef.current.getFloatTimeDomainData(analyserBufferRef.current);
         const [pitch, clarity] = pitchDetectorRef.current.findPitch(analyserBufferRef.current, audioContextRef.current.sampleRate);
         const voiceCandidate = pitch > 30 && pitch < 2000 ? pitch : null;
@@ -956,10 +966,17 @@ export default function HomePage(): JSX.Element {
           setVoiceFrequency(voiceValue);
           voiceFrequencyRef.current = voiceValue;
           const inRange = voiceValue >= selectedRangeFrequencies.min && voiceValue <= selectedRangeFrequencies.max;
-          setPitchOutOfRange(!inRange);
+          if (inRange) {
+            outOfRangeAccumRef.current = 0;
+            setPitchOutOfRange(false);
+          } else {
+            outOfRangeAccumRef.current += deltaMs;
+            setPitchOutOfRange(outOfRangeAccumRef.current >= 500);
+          }
         } else {
           setVoiceFrequency(null);
           voiceFrequencyRef.current = null;
+          outOfRangeAccumRef.current = 0;
           setPitchOutOfRange(false);
         }
 
