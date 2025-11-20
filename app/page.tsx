@@ -1,22 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Line } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  LineElement,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  Tooltip,
-  Legend
-} from "chart.js";
+import uPlot from "uplot";
+import "uplot/dist/uPlot.min.css";
 import { PitchDetector } from "pitchy";
-
-ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
 
 const SAMPLE_RATE = 44_100;
 const GAP_SECONDS = 0.05;
+const PITCH_CHART_HEIGHT = 180;
 const PIANO_SAMPLE_BASE_URL = "https://tonejs.github.io/audio/salamander/";
 const PIANO_SAMPLE_MAP = {
   A0: "A0.mp3",
@@ -50,6 +41,8 @@ const PIANO_SAMPLE_MAP = {
   A7: "A7.mp3",
   C8: "C8.mp3"
 } as const;
+
+const PIANO_RELEASE_SECONDS = 2.5;
 
 // Whole steps (2) and half steps (1) for a major scale: T-T-ST-T-T-T-ST
 const MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1];
@@ -114,7 +107,7 @@ function preloadPianoSamples(): Promise<void> {
       const Tone = await loadToneModule();
       const sampler = new Tone.Sampler({
         urls: PIANO_SAMPLE_MAP,
-        release: 2,
+        release: PIANO_RELEASE_SECONDS,
         baseUrl: PIANO_SAMPLE_BASE_URL
       });
       await sampler.loaded;
@@ -159,20 +152,28 @@ async function renderPianoSequence(
 
   await preloadPianoSamples();
   const Tone = await loadToneModule();
-  const releaseTail = 1.5;
+  const sustainSynthRelease = 0.6;
+  const releaseTail = Math.max(PIANO_RELEASE_SECONDS, sustainSynthRelease) + 0.5;
   const sequenceSpan = notes.length * (durationSeconds + gapSeconds) - gapSeconds;
   const offlineDuration = Math.max(sequenceSpan + releaseTail, durationSeconds + releaseTail);
   const toneBuffer = await Tone.Offline(async () => {
+    const masterGain = new Tone.Gain(0.85).toDestination();
     const sampler = new Tone.Sampler({
       urls: PIANO_SAMPLE_MAP,
-      release: 2,
+      release: PIANO_RELEASE_SECONDS,
       baseUrl: PIANO_SAMPLE_BASE_URL
-    }).toDestination();
+    }).connect(masterGain);
+    const sustainLayer = new Tone.Synth({
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.01, decay: 0, sustain: 1, release: sustainSynthRelease }
+    }).connect(new Tone.Gain(0.35).connect(masterGain));
     await Tone.loaded();
 
     let cursor = 0;
     notes.forEach((note) => {
       sampler.triggerAttackRelease(note, durationSeconds, cursor, 0.9);
+      // Subtle sustained layer keeps the pitch audible for the full duration.
+      sustainLayer.triggerAttackRelease(note, durationSeconds, cursor, 0.5);
       cursor += durationSeconds + gapSeconds;
     });
   }, offlineDuration);
@@ -327,7 +328,7 @@ export default function HomePage(): JSX.Element {
   const [selectedNote, setSelectedNote] = useState("");
   const [duration, setDuration] = useState(1);
   const [noteCount, setNoteCount] = useState(3);
-  const [playMode, setPlayMode] = useState<"single" | "loop">("loop");
+  const [playMode, setPlayMode] = useState<"single" | "loop">("single");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
@@ -341,7 +342,10 @@ export default function HomePage(): JSX.Element {
   const [pitchError, setPitchError] = useState<string | null>(null);
   const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
-  const [noiseThreshold, setNoiseThreshold] = useState(0.8);
+  const [noiseThreshold, setNoiseThreshold] = useState(30);
+  const [voiceDetected, setVoiceDetected] = useState(true);
+  const pitchChartContainerRef = useRef<HTMLDivElement | null>(null);
+  const pitchChartRef = useRef<uPlot | null>(null);
   const generationIdRef = useRef(0);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const playbackScheduleRef = useRef<{ note: string; start: number; end: number }[] | null>(null);
@@ -351,6 +355,10 @@ export default function HomePage(): JSX.Element {
   const micStreamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const analyserBufferRef = useRef<Float32Array | null>(null);
+  const lastSplLogRef = useRef(0);
+  const silenceAccumRef = useRef(0);
+  const outOfRangeAccumRef = useRef(0);
+  const lastPitchTimestampRef = useRef<number | null>(null);
   const voiceFrequencyRef = useRef<number | null>(null);
   const noiseThresholdRef = useRef(noiseThreshold);
   const targetFrequencyRef = useRef<number | null>(null);
@@ -577,6 +585,15 @@ export default function HomePage(): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (pitchChartRef.current) {
+        pitchChartRef.current.destroy();
+        pitchChartRef.current = null;
+      }
+    };
+  }, []);
+
   const maxNotes = useMemo(() => {
     if (!selectedNote) {
       return 20;
@@ -682,14 +699,9 @@ export default function HomePage(): JSX.Element {
     return { min: lowerBound, max: upperBound };
   }, [selectedNote, sequenceFrequencyBounds.min, sequenceFrequencyBounds.max]);
 
-  const filteredPitchHistory = useMemo(() => {
-    return pitchSamples.map((sample) => {
-      if (sample.pitch === null) {
-        return null;
-      }
-      return sample.clarity >= noiseThreshold ? sample.pitch : null;
-    });
-  }, [pitchSamples, noiseThreshold]);
+  const voicePitchHistory = useMemo(() => {
+    return pitchSamples.map((sample) => sample.pitch);
+  }, [pitchSamples]);
 
   const currentTargetNoteLabel = useMemo(() => {
     if (!currentTargetNote) {
@@ -733,72 +745,94 @@ export default function HomePage(): JSX.Element {
     }
   }, [pitchStatus, pitchError]);
 
-  const pitchChartData = useMemo(() => {
-    const maxLength = Math.max(filteredPitchHistory.length, targetHistory.length);
-    const labels = Array.from({ length: maxLength }, (_, index) => index);
-    const voicedData = labels.map((_, idx) => filteredPitchHistory[idx] ?? null);
-    const targetData = labels.map((_, idx) => targetHistory[idx] ?? null);
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Nota bersaglio (Hz)",
-          data: targetData,
-          borderColor: "rgba(80, 220, 120, 1)",
-          backgroundColor: "rgba(80, 220, 120, 0.15)",
-          pointRadius: 0,
-          tension: 0.2,
-          spanGaps: true
-        },
-        {
-          label: "Voce (Hz)",
-          data: voicedData,
-          borderColor: "rgba(255, 214, 102, 1)",
-          backgroundColor: "rgba(255, 214, 102, 0.25)",
-          pointRadius: 0,
-          tension: 0.35,
-          spanGaps: true
-        }
-      ]
-    };
-  }, [filteredPitchHistory, targetHistory]);
+  useEffect(() => {
+    const container = pitchChartContainerRef.current;
+    if (!container) {
+      return;
+    }
 
-  const pitchChartOptions = useMemo(() => {
-    const lowerBound = chartFrequencyBounds.min;
-    const upperBound = chartFrequencyBounds.max;
-    return {
-      responsive: true,
-      animation: false as const,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          display: false
-        },
-        y: {
-          min: lowerBound,
-          max: upperBound,
-          title: {
-            display: true,
-            text: "Frequenza (Hz)",
-            color: "#cbd5f5",
-            font: {
-              size: 12
+    const maxLength = Math.max(voicePitchHistory.length, targetHistory.length, 1);
+    const labels = Array.from({ length: maxLength }, (_, index) => index);
+    const voicedData = labels.map((_, idx) => {
+      const value = voicePitchHistory[idx] ?? null;
+      if (value === null) {
+        return null;
+      }
+      if (value < chartFrequencyBounds.min || value > chartFrequencyBounds.max) {
+        return null;
+      }
+      return value;
+    });
+    const targetData = labels.map((_, idx) => targetHistory[idx] ?? null);
+    const chartData: uPlot.AlignedData = [labels, targetData, voicedData];
+    const width = container.clientWidth || 320;
+
+    if (!pitchChartRef.current) {
+      pitchChartRef.current = new uPlot(
+        {
+          width,
+          height: PITCH_CHART_HEIGHT,
+          scales: {
+            x: { time: false },
+            y: {
+              min: chartFrequencyBounds.min,
+              max: chartFrequencyBounds.max
             }
           },
-          ticks: {
-            color: "#ccc"
-          },
-          grid: {
-            color: "rgba(255,255,255,0.1)"
-          }
-        }
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: { enabled: false }
+          axes: [
+            { show: false },
+            {
+              label: "Frequenza (Hz)",
+              stroke: "#cbd5f5",
+              grid: { stroke: "rgba(255,255,255,0.1)" }
+            }
+          ],
+          legend: { show: false },
+          series: [
+            {},
+            {
+              label: "Nota bersaglio (Hz)",
+              stroke: "rgba(80, 220, 120, 1)",
+              width: 2,
+              spanGaps: true,
+              points: { show: false }
+            },
+            {
+              label: "Voce (Hz)",
+              stroke: "rgba(255, 214, 102, 1)",
+              width: 2,
+              spanGaps: true,
+              points: { show: false }
+            }
+          ]
+        },
+        chartData,
+        container
+      );
+      return;
+    }
+
+    pitchChartRef.current.setScale("y", { min: chartFrequencyBounds.min, max: chartFrequencyBounds.max });
+    pitchChartRef.current.setData(chartData);
+  }, [voicePitchHistory, targetHistory, chartFrequencyBounds.min, chartFrequencyBounds.max]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const container = pitchChartContainerRef.current;
+      const chart = pitchChartRef.current;
+      if (!container || !chart) {
+        return;
       }
+      const width = container.clientWidth || 320;
+      chart.setSize({ width, height: PITCH_CHART_HEIGHT });
     };
-  }, [chartFrequencyBounds.min, chartFrequencyBounds.max]);
+
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
@@ -826,6 +860,10 @@ export default function HomePage(): JSX.Element {
     setPitchSamples([]);
     setTargetHistory([]);
     setPitchOutOfRange(false);
+    outOfRangeAccumRef.current = 0;
+    silenceAccumRef.current = 0;
+    lastPitchTimestampRef.current = null;
+    setVoiceDetected(true);
     lastScheduleNoteRef.current = null;
     setAudioUrl((prev) => {
       if (prev) {
@@ -857,7 +895,14 @@ export default function HomePage(): JSX.Element {
       if (!navigator.mediaDevices) {
         throw new Error("Media devices non disponibili");
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+           // TODO mic controls
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl: false
+        }
+      });
       micStreamRef.current = stream;
       const win = window as typeof window & { webkitAudioContext?: typeof AudioContext };
       const AudioCtx = win.AudioContext ?? win.webkitAudioContext;
@@ -867,43 +912,95 @@ export default function HomePage(): JSX.Element {
       const audioContext = new AudioCtx();
       audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
+      // Trim low rumble before pitch detection.
+      const highPass = audioContext.createBiquadFilter();
+      highPass.type = "highpass";
+      highPass.frequency.value = 40;
       const analyser = audioContext.createAnalyser();
+      // TODO see if fftSize creates performance issues
       analyser.fftSize = 2048;
       analyserRef.current = analyser;
       analyserBufferRef.current = new Float32Array(analyser.fftSize);
       pitchDetectorRef.current = PitchDetector.forFloat32Array(analyser.fftSize);
-      source.connect(analyser);
+      source.connect(highPass);
+      highPass.connect(analyser);
       setPitchSamples([]);
       setTargetHistory([]);
       setVoiceFrequency(null);
+      setVoiceDetected(true);
+      silenceAccumRef.current = 0;
       setPitchOutOfRange(false);
+      outOfRangeAccumRef.current = 0;
+      lastPitchTimestampRef.current = null;
 
       const detectPitch = () => {
         if (!analyserRef.current || !pitchDetectorRef.current || !analyserBufferRef.current || !audioContextRef.current) {
           pitchRafRef.current = requestAnimationFrame(detectPitch);
           return;
         }
+        const now = performance.now();
+        const lastTick = lastPitchTimestampRef.current ?? now;
+        const deltaMs = now - lastTick;
+        lastPitchTimestampRef.current = now;
         analyserRef.current.getFloatTimeDomainData(analyserBufferRef.current);
         const [pitch, clarity] = pitchDetectorRef.current.findPitch(analyserBufferRef.current, audioContextRef.current.sampleRate);
-        const clarityThreshold = noiseThresholdRef.current;
         const voiceCandidate = pitch > 30 && pitch < 2000 ? pitch : null;
-        const passesThreshold = clarity >= clarityThreshold && voiceCandidate !== null;
-        const voiceValue = passesThreshold ? voiceCandidate : null;
-        const targetValue = targetFrequencyRef.current ?? null;
+        let splDb = -Infinity;
+        // this monitor sound pressure level (dBFS) how strong a sound is
+        // 0 is max volume, silence is -infinity
+        // Log SPL (approx. dBFS) periodically to monitor input level.
+        if (analyserBufferRef.current) {
+          let sumSquares = 0;
+          for (let i = 0; i < analyserBufferRef.current.length; i += 1) {
+            const sample = analyserBufferRef.current[i];
+            sumSquares += sample * sample;
+          }
+          const rms = Math.sqrt(sumSquares / analyserBufferRef.current.length) || 1e-8;
+          splDb = 20 * Math.log10(rms);
+          if (now - lastSplLogRef.current > 200) {
+            console.log("SPL (dBFS):", splDb.toFixed(1));
+            lastSplLogRef.current = now;
+          }
+        }
+
+        const splCutoff = -100 + noiseThresholdRef.current; // Slider: 0 lets all through, 100 blocks nearly everything.
+        const belowNoiseFloor = splDb < splCutoff;
+        const hasSignal = !belowNoiseFloor;
+        const voiceValue = hasSignal ? voiceCandidate : null;
+        const audioEl = audioElementRef.current;
+        const isAudioPlaying = Boolean(audioEl && !audioEl.paused && !audioEl.ended);
+        const targetValue = isAudioPlaying ? targetFrequencyRef.current ?? null : null;
+
+        if (hasSignal) {
+          silenceAccumRef.current = 0;
+          setVoiceDetected(true);
+        } else {
+          silenceAccumRef.current += deltaMs;
+          if (silenceAccumRef.current >= 500 && voiceDetected) {
+            setVoiceDetected(false);
+          }
+        }
 
         if (voiceValue !== null) {
           setVoiceFrequency(voiceValue);
           voiceFrequencyRef.current = voiceValue;
           const inRange = voiceValue >= selectedRangeFrequencies.min && voiceValue <= selectedRangeFrequencies.max;
-          setPitchOutOfRange(!inRange);
+          if (inRange) {
+            outOfRangeAccumRef.current = 0;
+            setPitchOutOfRange(false);
+          } else {
+            outOfRangeAccumRef.current += deltaMs;
+            setPitchOutOfRange(outOfRangeAccumRef.current >= 500);
+          }
         } else {
           setVoiceFrequency(null);
           voiceFrequencyRef.current = null;
+          outOfRangeAccumRef.current = 0;
           setPitchOutOfRange(false);
         }
 
         setPitchSamples((prev) => {
-          const next = [...prev, { pitch: voiceCandidate, clarity }];
+          const next = [...prev, { pitch: voiceValue, clarity }];
           const limit = 150;
           return next.length > limit ? next.slice(next.length - limit) : next;
         });
@@ -924,7 +1021,7 @@ export default function HomePage(): JSX.Element {
       setPitchStatus("error");
       setPitchError("Consenti l'accesso al microfono per rilevare la voce.");
     }
-  }, [pitchStatus, selectedRangeFrequencies.min, selectedRangeFrequencies.max]);
+  }, [pitchStatus, selectedRangeFrequencies.min, selectedRangeFrequencies.max, voiceDetected]);
 
   useEffect(() => {
     if (pitchStatus === "idle") {
@@ -1152,12 +1249,12 @@ export default function HomePage(): JSX.Element {
           </p>
         )}
         <label className="noise-filter-control" style={{ width: "100%", marginTop: pitchError ? "4px" : "12px" }}>
-          <span>Filtro rumore microfono: {noiseThreshold.toFixed(2)}</span>
+          <span>Filtro rumore microfono (soglia dB): {noiseThreshold.toFixed(0)}</span>
           <input
             type="range"
-            min={0.05}
-            max={0.98}
-            step={0.01}
+            min={0}
+            max={100}
+            step={1}
             value={noiseThreshold}
             onChange={(event) => setNoiseThreshold(Number(event.target.value))}
           />
@@ -1173,11 +1270,11 @@ export default function HomePage(): JSX.Element {
         </div>
         <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
         <p style={{ margin: "0 0 12px" }}>Nota voce: {currentVoiceNoteLabel}</p>
-        <div style={{ height: "180px" }}>
-          <Line data={pitchChartData} options={pitchChartOptions} />
+        <div style={{ height: `${PITCH_CHART_HEIGHT}px` }}>
+          <div ref={pitchChartContainerRef} style={{ height: "100%", width: "100%" }} />
         </div>
         <div className="pitch-warning-slot">
-          {pitchOutOfRange && (
+          {pitchOutOfRange ? (
             <button
               type="button"
               className="secondary-button flash-button"
@@ -1189,6 +1286,20 @@ export default function HomePage(): JSX.Element {
             >
             Pitch fuori dai limiti, controlla l&apos;estensione vocale
             </button>
+          ) : (
+            !voiceDetected && (
+              <div
+                className="secondary-button"
+                style={{
+                  backgroundColor: "#2a2e52",
+                  borderColor: "#394070",
+                  color: "#cbd5f5",
+                  opacity: 0.9
+                }}
+              >
+                Nessun audio rilevato
+              </div>
+            )
           )}
         </div>
       </section>
