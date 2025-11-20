@@ -21,22 +21,22 @@ services:
 
 
       # Apex (HTTPS)
-      - traefik.http.routers.voice_trainer_fe.rule=Host(`music.weather-on-calendar.com`)
+      - traefik.http.routers.voice_trainer_fe.rule=Host(`cantami.net`)
 
-      - traefik.http.routers.voice_trainer.rule=Host(`music.weather-on-calendar.com`)
+      - traefik.http.routers.voice_trainer.rule=Host(`cantami.net`)
       - traefik.http.routers.voice_trainer.entrypoints=https
       - traefik.http.routers.voice_trainer.tls=true
       # If your Traefik needs it:
       # - traefik.http.routers.frontend.tls.certresolver=letsencrypt
 
       # Apex (HTTP -> HTTPS)
-      - traefik.http.routers.voice_trainer-http.rule=Host(`music.weather-on-calendar.com`)
+      - traefik.http.routers.voice_trainer-http.rule=Host(`cantami.net`)
       - traefik.http.routers.voice_trainer-http.entrypoints=http
       - traefik.http.routers.voice_trainer-http.middlewares=redirect-to-https
       - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
 
       # WWW -> apex (both http & https)
-      - traefik.http.routers.voice_trainer-www.rule=Host(`www.music.weather-on-calendar.com`)
+      - traefik.http.routers.voice_trainer-www.rule=Host(`www.cantami.net`)
       - traefik.http.routers.voice_trainer-www.entrypoints=http,https
       - traefik.http.routers.voice_trainer-www.tls=true
 
