@@ -1,22 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Line } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  LineElement,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  Tooltip,
-  Legend
-} from "chart.js";
+import uPlot from "uplot";
+import "uplot/dist/uPlot.min.css";
 import { PitchDetector } from "pitchy";
-
-ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
 
 const SAMPLE_RATE = 44_100;
 const GAP_SECONDS = 0.05;
+const PITCH_CHART_HEIGHT = 180;
 const PIANO_SAMPLE_BASE_URL = "https://tonejs.github.io/audio/salamander/";
 const PIANO_SAMPLE_MAP = {
   A0: "A0.mp3",
@@ -342,6 +333,8 @@ export default function HomePage(): JSX.Element {
   const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
   const [noiseThreshold, setNoiseThreshold] = useState(0.8);
+  const pitchChartContainerRef = useRef<HTMLDivElement | null>(null);
+  const pitchChartRef = useRef<uPlot | null>(null);
   const generationIdRef = useRef(0);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const playbackScheduleRef = useRef<{ note: string; start: number; end: number }[] | null>(null);
@@ -577,6 +570,15 @@ export default function HomePage(): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (pitchChartRef.current) {
+        pitchChartRef.current.destroy();
+        pitchChartRef.current = null;
+      }
+    };
+  }, []);
+
   const maxNotes = useMemo(() => {
     if (!selectedNote) {
       return 20;
@@ -682,14 +684,9 @@ export default function HomePage(): JSX.Element {
     return { min: lowerBound, max: upperBound };
   }, [selectedNote, sequenceFrequencyBounds.min, sequenceFrequencyBounds.max]);
 
-  const filteredPitchHistory = useMemo(() => {
-    return pitchSamples.map((sample) => {
-      if (sample.pitch === null) {
-        return null;
-      }
-      return sample.clarity >= noiseThreshold ? sample.pitch : null;
-    });
-  }, [pitchSamples, noiseThreshold]);
+  const voicePitchHistory = useMemo(() => {
+    return pitchSamples.map((sample) => sample.pitch);
+  }, [pitchSamples]);
 
   const currentTargetNoteLabel = useMemo(() => {
     if (!currentTargetNote) {
@@ -733,72 +730,94 @@ export default function HomePage(): JSX.Element {
     }
   }, [pitchStatus, pitchError]);
 
-  const pitchChartData = useMemo(() => {
-    const maxLength = Math.max(filteredPitchHistory.length, targetHistory.length);
-    const labels = Array.from({ length: maxLength }, (_, index) => index);
-    const voicedData = labels.map((_, idx) => filteredPitchHistory[idx] ?? null);
-    const targetData = labels.map((_, idx) => targetHistory[idx] ?? null);
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Nota bersaglio (Hz)",
-          data: targetData,
-          borderColor: "rgba(80, 220, 120, 1)",
-          backgroundColor: "rgba(80, 220, 120, 0.15)",
-          pointRadius: 0,
-          tension: 0.2,
-          spanGaps: true
-        },
-        {
-          label: "Voce (Hz)",
-          data: voicedData,
-          borderColor: "rgba(255, 214, 102, 1)",
-          backgroundColor: "rgba(255, 214, 102, 0.25)",
-          pointRadius: 0,
-          tension: 0.35,
-          spanGaps: true
-        }
-      ]
-    };
-  }, [filteredPitchHistory, targetHistory]);
+  useEffect(() => {
+    const container = pitchChartContainerRef.current;
+    if (!container) {
+      return;
+    }
 
-  const pitchChartOptions = useMemo(() => {
-    const lowerBound = chartFrequencyBounds.min;
-    const upperBound = chartFrequencyBounds.max;
-    return {
-      responsive: true,
-      animation: false as const,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          display: false
-        },
-        y: {
-          min: lowerBound,
-          max: upperBound,
-          title: {
-            display: true,
-            text: "Frequenza (Hz)",
-            color: "#cbd5f5",
-            font: {
-              size: 12
+    const maxLength = Math.max(voicePitchHistory.length, targetHistory.length, 1);
+    const labels = Array.from({ length: maxLength }, (_, index) => index);
+    const voicedData = labels.map((_, idx) => {
+      const value = voicePitchHistory[idx] ?? null;
+      if (value === null) {
+        return null;
+      }
+      if (value < chartFrequencyBounds.min || value > chartFrequencyBounds.max) {
+        return null;
+      }
+      return value;
+    });
+    const targetData = labels.map((_, idx) => targetHistory[idx] ?? null);
+    const chartData: uPlot.AlignedData = [labels, targetData, voicedData];
+    const width = container.clientWidth || 320;
+
+    if (!pitchChartRef.current) {
+      pitchChartRef.current = new uPlot(
+        {
+          width,
+          height: PITCH_CHART_HEIGHT,
+          scales: {
+            x: { time: false },
+            y: {
+              min: chartFrequencyBounds.min,
+              max: chartFrequencyBounds.max
             }
           },
-          ticks: {
-            color: "#ccc"
-          },
-          grid: {
-            color: "rgba(255,255,255,0.1)"
-          }
-        }
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: { enabled: false }
+          axes: [
+            { show: false },
+            {
+              label: "Frequenza (Hz)",
+              stroke: "#cbd5f5",
+              grid: { stroke: "rgba(255,255,255,0.1)" }
+            }
+          ],
+          legend: { show: false },
+          series: [
+            {},
+            {
+              label: "Nota bersaglio (Hz)",
+              stroke: "rgba(80, 220, 120, 1)",
+              width: 2,
+              spanGaps: true,
+              points: { show: false }
+            },
+            {
+              label: "Voce (Hz)",
+              stroke: "rgba(255, 214, 102, 1)",
+              width: 2,
+              spanGaps: true,
+              points: { show: false }
+            }
+          ]
+        },
+        chartData,
+        container
+      );
+      return;
+    }
+
+    pitchChartRef.current.setScale("y", { min: chartFrequencyBounds.min, max: chartFrequencyBounds.max });
+    pitchChartRef.current.setData(chartData);
+  }, [voicePitchHistory, targetHistory, chartFrequencyBounds.min, chartFrequencyBounds.max]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const container = pitchChartContainerRef.current;
+      const chart = pitchChartRef.current;
+      if (!container || !chart) {
+        return;
       }
+      const width = container.clientWidth || 320;
+      chart.setSize({ width, height: PITCH_CHART_HEIGHT });
     };
-  }, [chartFrequencyBounds.min, chartFrequencyBounds.max]);
+
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
@@ -857,7 +876,14 @@ export default function HomePage(): JSX.Element {
       if (!navigator.mediaDevices) {
         throw new Error("Media devices non disponibili");
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+           // TODO mic controls
+          // noiseSuppression: true,
+          // echoCancellation: true,
+          autoGainControl: false
+        }
+      });
       micStreamRef.current = stream;
       const win = window as typeof window & { webkitAudioContext?: typeof AudioContext };
       const AudioCtx = win.AudioContext ?? win.webkitAudioContext;
@@ -868,6 +894,7 @@ export default function HomePage(): JSX.Element {
       audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
+      // TODO see if fftSize creates performance issues
       analyser.fftSize = 2048;
       analyserRef.current = analyser;
       analyserBufferRef.current = new Float32Array(analyser.fftSize);
@@ -1173,8 +1200,8 @@ export default function HomePage(): JSX.Element {
         </div>
         <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
         <p style={{ margin: "0 0 12px" }}>Nota voce: {currentVoiceNoteLabel}</p>
-        <div style={{ height: "180px" }}>
-          <Line data={pitchChartData} options={pitchChartOptions} />
+        <div style={{ height: `${PITCH_CHART_HEIGHT}px` }}>
+          <div ref={pitchChartContainerRef} style={{ height: "100%", width: "100%" }} />
         </div>
         <div className="pitch-warning-slot">
           {pitchOutOfRange && (
