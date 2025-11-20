@@ -957,6 +957,10 @@ export default function HomePage(): JSX.Element {
           }
           const rms = Math.sqrt(sumSquares / analyserBufferRef.current.length) || 1e-8;
           splDb = 20 * Math.log10(rms);
+          if (now - lastSplLogRef.current > 200) {
+            console.log("SPL (dBFS):", splDb.toFixed(1));
+            lastSplLogRef.current = now;
+          }
         }
 
         const splCutoff = -100 + noiseThresholdRef.current; // Slider: 0 lets all through, 100 blocks nearly everything.
@@ -1017,7 +1021,7 @@ export default function HomePage(): JSX.Element {
       setPitchStatus("error");
       setPitchError("Consenti l'accesso al microfono per rilevare la voce.");
     }
-  }, [pitchStatus, selectedRangeFrequencies.min, selectedRangeFrequencies.max]);
+  }, [pitchStatus, selectedRangeFrequencies.min, selectedRangeFrequencies.max, voiceDetected]);
 
   useEffect(() => {
     if (pitchStatus === "idle") {
