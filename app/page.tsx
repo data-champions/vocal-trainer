@@ -961,16 +961,25 @@ export default function HomePage(): JSX.Element {
 
         const splCutoff = -100 + noiseThresholdRef.current; // Slider: 0 lets all through, 100 blocks nearly everything.
         const belowNoiseFloor = splDb < splCutoff;
-        const voiceValue = !belowNoiseFloor ? voiceCandidate : null;
+        const hasSignal = !belowNoiseFloor;
+        const voiceValue = hasSignal ? voiceCandidate : null;
         const audioEl = audioElementRef.current;
         const isAudioPlaying = Boolean(audioEl && !audioEl.paused && !audioEl.ended);
         const targetValue = isAudioPlaying ? targetFrequencyRef.current ?? null : null;
 
+        if (hasSignal) {
+          silenceAccumRef.current = 0;
+          setVoiceDetected(true);
+        } else {
+          silenceAccumRef.current += deltaMs;
+          if (silenceAccumRef.current >= 500 && voiceDetected) {
+            setVoiceDetected(false);
+          }
+        }
+
         if (voiceValue !== null) {
           setVoiceFrequency(voiceValue);
           voiceFrequencyRef.current = voiceValue;
-          silenceAccumRef.current = 0;
-          setVoiceDetected(true);
           const inRange = voiceValue >= selectedRangeFrequencies.min && voiceValue <= selectedRangeFrequencies.max;
           if (inRange) {
             outOfRangeAccumRef.current = 0;
@@ -982,10 +991,6 @@ export default function HomePage(): JSX.Element {
         } else {
           setVoiceFrequency(null);
           voiceFrequencyRef.current = null;
-          silenceAccumRef.current += deltaMs;
-          if (silenceAccumRef.current >= 500) {
-            setVoiceDetected(false);
-          }
           outOfRangeAccumRef.current = 0;
           setPitchOutOfRange(false);
         }
