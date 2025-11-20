@@ -962,7 +962,9 @@ export default function HomePage(): JSX.Element {
         const splCutoff = -100 + noiseThresholdRef.current; // Slider: 0 lets all through, 100 blocks nearly everything.
         const belowNoiseFloor = splDb < splCutoff;
         const voiceValue = !belowNoiseFloor ? voiceCandidate : null;
-        const targetValue = targetFrequencyRef.current ?? null;
+        const audioEl = audioElementRef.current;
+        const isAudioPlaying = Boolean(audioEl && !audioEl.paused && !audioEl.ended);
+        const targetValue = isAudioPlaying ? targetFrequencyRef.current ?? null : null;
 
         if (voiceValue !== null) {
           setVoiceFrequency(voiceValue);
