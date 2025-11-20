@@ -42,6 +42,8 @@ const PIANO_SAMPLE_MAP = {
   C8: "C8.mp3"
 } as const;
 
+const PIANO_RELEASE_SECONDS = 2.5;
+
 // Whole steps (2) and half steps (1) for a major scale: T-T-ST-T-T-T-ST
 const MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1];
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
@@ -105,7 +107,7 @@ function preloadPianoSamples(): Promise<void> {
       const Tone = await loadToneModule();
       const sampler = new Tone.Sampler({
         urls: PIANO_SAMPLE_MAP,
-        release: 2,
+        release: PIANO_RELEASE_SECONDS,
         baseUrl: PIANO_SAMPLE_BASE_URL
       });
       await sampler.loaded;
@@ -150,20 +152,28 @@ async function renderPianoSequence(
 
   await preloadPianoSamples();
   const Tone = await loadToneModule();
-  const releaseTail = 1.5;
+  const sustainSynthRelease = 0.6;
+  const releaseTail = Math.max(PIANO_RELEASE_SECONDS, sustainSynthRelease) + 0.5;
   const sequenceSpan = notes.length * (durationSeconds + gapSeconds) - gapSeconds;
   const offlineDuration = Math.max(sequenceSpan + releaseTail, durationSeconds + releaseTail);
   const toneBuffer = await Tone.Offline(async () => {
+    const masterGain = new Tone.Gain(0.85).toDestination();
     const sampler = new Tone.Sampler({
       urls: PIANO_SAMPLE_MAP,
-      release: 2,
+      release: PIANO_RELEASE_SECONDS,
       baseUrl: PIANO_SAMPLE_BASE_URL
-    }).toDestination();
+    }).connect(masterGain);
+    const sustainLayer = new Tone.Synth({
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.01, decay: 0, sustain: 1, release: sustainSynthRelease }
+    }).connect(new Tone.Gain(0.35).connect(masterGain));
     await Tone.loaded();
 
     let cursor = 0;
     notes.forEach((note) => {
       sampler.triggerAttackRelease(note, durationSeconds, cursor, 0.9);
+      // Subtle sustained layer keeps the pitch audible for the full duration.
+      sustainLayer.triggerAttackRelease(note, durationSeconds, cursor, 0.5);
       cursor += durationSeconds + gapSeconds;
     });
   }, offlineDuration);
@@ -332,7 +342,8 @@ export default function HomePage(): JSX.Element {
   const [pitchError, setPitchError] = useState<string | null>(null);
   const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
-  const [noiseThreshold, setNoiseThreshold] = useState(0.8);
+  const [noiseThreshold, setNoiseThreshold] = useState(45);
+  const [voiceDetected, setVoiceDetected] = useState(false);
   const pitchChartContainerRef = useRef<HTMLDivElement | null>(null);
   const pitchChartRef = useRef<uPlot | null>(null);
   const generationIdRef = useRef(0);
@@ -344,6 +355,7 @@ export default function HomePage(): JSX.Element {
   const micStreamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const analyserBufferRef = useRef<Float32Array | null>(null);
+  const lastSplLogRef = useRef(0);
   const voiceFrequencyRef = useRef<number | null>(null);
   const noiseThresholdRef = useRef(noiseThreshold);
   const targetFrequencyRef = useRef<number | null>(null);
@@ -845,6 +857,7 @@ export default function HomePage(): JSX.Element {
     setPitchSamples([]);
     setTargetHistory([]);
     setPitchOutOfRange(false);
+    setVoiceDetected(false);
     lastScheduleNoteRef.current = null;
     setAudioUrl((prev) => {
       if (prev) {
@@ -879,8 +892,8 @@ export default function HomePage(): JSX.Element {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
            // TODO mic controls
-          // noiseSuppression: true,
-          // echoCancellation: true,
+          noiseSuppression: true,
+          echoCancellation: true,
           autoGainControl: false
         }
       });
@@ -893,16 +906,22 @@ export default function HomePage(): JSX.Element {
       const audioContext = new AudioCtx();
       audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
+      // Trim low rumble before pitch detection.
+      const highPass = audioContext.createBiquadFilter();
+      highPass.type = "highpass";
+      highPass.frequency.value = 40;
       const analyser = audioContext.createAnalyser();
       // TODO see if fftSize creates performance issues
       analyser.fftSize = 2048;
       analyserRef.current = analyser;
       analyserBufferRef.current = new Float32Array(analyser.fftSize);
       pitchDetectorRef.current = PitchDetector.forFloat32Array(analyser.fftSize);
-      source.connect(analyser);
+      source.connect(highPass);
+      highPass.connect(analyser);
       setPitchSamples([]);
       setTargetHistory([]);
       setVoiceFrequency(null);
+      setVoiceDetected(false);
       setPitchOutOfRange(false);
 
       const detectPitch = () => {
@@ -912,11 +931,26 @@ export default function HomePage(): JSX.Element {
         }
         analyserRef.current.getFloatTimeDomainData(analyserBufferRef.current);
         const [pitch, clarity] = pitchDetectorRef.current.findPitch(analyserBufferRef.current, audioContextRef.current.sampleRate);
-        const clarityThreshold = noiseThresholdRef.current;
         const voiceCandidate = pitch > 30 && pitch < 2000 ? pitch : null;
-        const passesThreshold = clarity >= clarityThreshold && voiceCandidate !== null;
-        const voiceValue = passesThreshold ? voiceCandidate : null;
+        let splDb = -Infinity;
+        // this monitor sound pressure level (dBFS) how strong a sound is
+        // 0 is max volume, silence is -infinity
+        // Log SPL (approx. dBFS) periodically to monitor input level.
+        if (analyserBufferRef.current) {
+          let sumSquares = 0;
+          for (let i = 0; i < analyserBufferRef.current.length; i += 1) {
+            const sample = analyserBufferRef.current[i];
+            sumSquares += sample * sample;
+          }
+          const rms = Math.sqrt(sumSquares / analyserBufferRef.current.length) || 1e-8;
+          splDb = 20 * Math.log10(rms);
+        }
+
+        const splCutoff = -100 + noiseThresholdRef.current; // Slider: 0 lets all through, 100 blocks nearly everything.
+        const belowNoiseFloor = splDb < splCutoff;
+        const voiceValue = !belowNoiseFloor ? voiceCandidate : null;
         const targetValue = targetFrequencyRef.current ?? null;
+        setVoiceDetected(!belowNoiseFloor && voiceCandidate !== null);
 
         if (voiceValue !== null) {
           setVoiceFrequency(voiceValue);
@@ -930,7 +964,7 @@ export default function HomePage(): JSX.Element {
         }
 
         setPitchSamples((prev) => {
-          const next = [...prev, { pitch: voiceCandidate, clarity }];
+          const next = [...prev, { pitch: voiceValue, clarity }];
           const limit = 150;
           return next.length > limit ? next.slice(next.length - limit) : next;
         });
@@ -1179,12 +1213,12 @@ export default function HomePage(): JSX.Element {
           </p>
         )}
         <label className="noise-filter-control" style={{ width: "100%", marginTop: pitchError ? "4px" : "12px" }}>
-          <span>Filtro rumore microfono: {noiseThreshold.toFixed(2)}</span>
+          <span>Filtro rumore microfono (soglia dB): {noiseThreshold.toFixed(0)}</span>
           <input
             type="range"
-            min={0.05}
-            max={0.98}
-            step={0.01}
+            min={0}
+            max={100}
+            step={1}
             value={noiseThreshold}
             onChange={(event) => setNoiseThreshold(Number(event.target.value))}
           />
@@ -1204,7 +1238,7 @@ export default function HomePage(): JSX.Element {
           <div ref={pitchChartContainerRef} style={{ height: "100%", width: "100%" }} />
         </div>
         <div className="pitch-warning-slot">
-          {pitchOutOfRange && (
+          {pitchOutOfRange ? (
             <button
               type="button"
               className="secondary-button flash-button"
@@ -1216,6 +1250,20 @@ export default function HomePage(): JSX.Element {
             >
             Pitch fuori dai limiti, controlla l&apos;estensione vocale
             </button>
+          ) : (
+            !voiceDetected && (
+              <div
+                className="secondary-button"
+                style={{
+                  backgroundColor: "#2a2e52",
+                  borderColor: "#394070",
+                  color: "#cbd5f5",
+                  opacity: 0.9
+                }}
+              >
+                Nessun audio rilevato
+              </div>
+            )
           )}
         </div>
       </section>
