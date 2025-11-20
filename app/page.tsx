@@ -328,7 +328,7 @@ export default function HomePage(): JSX.Element {
   const [selectedNote, setSelectedNote] = useState("");
   const [duration, setDuration] = useState(1);
   const [noteCount, setNoteCount] = useState(3);
-  const [playMode, setPlayMode] = useState<"single" | "loop">("loop");
+  const [playMode, setPlayMode] = useState<"single" | "loop">("single");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
@@ -343,7 +343,7 @@ export default function HomePage(): JSX.Element {
   const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
   const [noiseThreshold, setNoiseThreshold] = useState(30);
-  const [voiceDetected, setVoiceDetected] = useState(false);
+  const [voiceDetected, setVoiceDetected] = useState(true);
   const pitchChartContainerRef = useRef<HTMLDivElement | null>(null);
   const pitchChartRef = useRef<uPlot | null>(null);
   const generationIdRef = useRef(0);
@@ -356,6 +356,7 @@ export default function HomePage(): JSX.Element {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const analyserBufferRef = useRef<Float32Array | null>(null);
   const lastSplLogRef = useRef(0);
+  const silenceAccumRef = useRef(0);
   const outOfRangeAccumRef = useRef(0);
   const lastPitchTimestampRef = useRef<number | null>(null);
   const voiceFrequencyRef = useRef<number | null>(null);
@@ -860,8 +861,9 @@ export default function HomePage(): JSX.Element {
     setTargetHistory([]);
     setPitchOutOfRange(false);
     outOfRangeAccumRef.current = 0;
+    silenceAccumRef.current = 0;
     lastPitchTimestampRef.current = null;
-    setVoiceDetected(false);
+    setVoiceDetected(true);
     lastScheduleNoteRef.current = null;
     setAudioUrl((prev) => {
       if (prev) {
@@ -925,7 +927,8 @@ export default function HomePage(): JSX.Element {
       setPitchSamples([]);
       setTargetHistory([]);
       setVoiceFrequency(null);
-      setVoiceDetected(false);
+      setVoiceDetected(true);
+      silenceAccumRef.current = 0;
       setPitchOutOfRange(false);
       outOfRangeAccumRef.current = 0;
       lastPitchTimestampRef.current = null;
@@ -960,11 +963,12 @@ export default function HomePage(): JSX.Element {
         const belowNoiseFloor = splDb < splCutoff;
         const voiceValue = !belowNoiseFloor ? voiceCandidate : null;
         const targetValue = targetFrequencyRef.current ?? null;
-        setVoiceDetected(!belowNoiseFloor && voiceCandidate !== null);
 
         if (voiceValue !== null) {
           setVoiceFrequency(voiceValue);
           voiceFrequencyRef.current = voiceValue;
+          silenceAccumRef.current = 0;
+          setVoiceDetected(true);
           const inRange = voiceValue >= selectedRangeFrequencies.min && voiceValue <= selectedRangeFrequencies.max;
           if (inRange) {
             outOfRangeAccumRef.current = 0;
@@ -976,6 +980,10 @@ export default function HomePage(): JSX.Element {
         } else {
           setVoiceFrequency(null);
           voiceFrequencyRef.current = null;
+          silenceAccumRef.current += deltaMs;
+          if (silenceAccumRef.current >= 500) {
+            setVoiceDetected(false);
+          }
           outOfRangeAccumRef.current = 0;
           setPitchOutOfRange(false);
         }
