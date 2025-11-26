@@ -43,6 +43,8 @@ const PIANO_SAMPLE_MAP = {
 } as const;
 
 const PIANO_RELEASE_SECONDS = 2.5;
+const PITCH_ADVICE_TOLERANCE_HZ = 18;
+const PITCH_LOG_INTERVAL_MS = 10;
 
 // Whole steps (2) and half steps (1) for a major scale: T-T-ST-T-T-T-ST
 const MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1];
@@ -286,6 +288,24 @@ function frequencyToNearestNoteName(frequency: number | null): string | null {
   return `${noteName}${octave}`;
 }
 
+function getPitchAdvice(targetHz: number | null, voiceHz: number | null): string | null {
+  if (
+    targetHz === null ||
+    voiceHz === null ||
+    !Number.isFinite(targetHz) ||
+    !Number.isFinite(voiceHz) ||
+    targetHz <= 0 ||
+    voiceHz <= 0
+  ) {
+    return null;
+  }
+  const delta = targetHz - voiceHz;
+  if (Math.abs(delta) <= PITCH_ADVICE_TOLERANCE_HZ) {
+    return "✅";
+  }
+  return delta > 0 ? "⬆️" : "⬇️";
+}
+
 function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE, numChannels = 1): ArrayBuffer {
   const bytesPerSample = 2;
   const blockAlign = numChannels * bytesPerSample;
@@ -343,6 +363,7 @@ export default function HomePage(): JSX.Element {
   const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
   const [noiseThreshold, setNoiseThreshold] = useState(30);
+  const [showPlot, setShowPlot] = useState(true);
   const [voiceDetected, setVoiceDetected] = useState(true);
   const pitchChartContainerRef = useRef<HTMLDivElement | null>(null);
   const pitchChartRef = useRef<uPlot | null>(null);
@@ -594,6 +615,13 @@ export default function HomePage(): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    if (!showPlot && pitchChartRef.current) {
+      pitchChartRef.current.destroy();
+      pitchChartRef.current = null;
+    }
+  }, [showPlot]);
+
   const maxNotes = useMemo(() => {
     if (!selectedNote) {
       return 20;
@@ -725,11 +753,7 @@ export default function HomePage(): JSX.Element {
     if (!voiceFrequency || voiceFrequency <= 0 || currentTargetFrequency <= 0) {
       return null;
     }
-    const diffHz = voiceFrequency - currentTargetFrequency;
-    if (Math.abs(diffHz) <= 10) {
-      return "✅";
-    }
-    return diffHz > 0 ? "⬇️" : "⬆️" ;
+    return getPitchAdvice(currentTargetFrequency, voiceFrequency);
   }, [audioUrl, currentTargetFrequency, voiceFrequency, pitchStatus]);
 
   const pitchStatusLabel = useMemo(() => {
@@ -746,6 +770,44 @@ export default function HomePage(): JSX.Element {
   }, [pitchStatus, pitchError]);
 
   useEffect(() => {
+    if (pitchStatus !== "ready") {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      const audioEl = audioElementRef.current;
+      const isAudioPlaying = Boolean(audioEl && !audioEl.paused && !audioEl.ended);
+      if (!isAudioPlaying) {
+        return;
+      }
+      const targetHz = targetFrequencyRef.current;
+      const voiceHz = voiceFrequencyRef.current;
+      const deltaHz = targetHz !== null && voiceHz !== null ? targetHz - voiceHz : null;
+      const advice = getPitchAdvice(targetHz, voiceHz) ?? "—";
+      const targetNoteLabel = currentTargetNoteRef.current || "—";
+      const userNoteLabel = frequencyToNearestNoteName(voiceHz) ?? "—";
+      const targetHzLabel = targetHz !== null && Number.isFinite(targetHz) ? targetHz.toFixed(2) : "—";
+      const voiceHzLabel = voiceHz !== null && Number.isFinite(voiceHz) ? voiceHz.toFixed(2) : "—";
+      const deltaHzLabel = deltaHz !== null && Number.isFinite(deltaHz) ? deltaHz.toFixed(2) : "—";
+      console.log(
+        "pitch-log",
+        `target:${targetNoteLabel}`,
+        `user:${userNoteLabel}`,
+        `targetHz:${targetHzLabel}`,
+        `userHz:${voiceHzLabel}`,
+        `deltaHz:${deltaHzLabel}`,
+        `advice:${advice}`
+      );
+    }, PITCH_LOG_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [pitchStatus]);
+
+  useEffect(() => {
+    if (!showPlot) {
+      return;
+    }
     const container = pitchChartContainerRef.current;
     if (!container) {
       return;
@@ -814,13 +876,13 @@ export default function HomePage(): JSX.Element {
 
     pitchChartRef.current.setScale("y", { min: chartFrequencyBounds.min, max: chartFrequencyBounds.max });
     pitchChartRef.current.setData(chartData);
-  }, [voicePitchHistory, targetHistory, chartFrequencyBounds.min, chartFrequencyBounds.max]);
+  }, [voicePitchHistory, targetHistory, chartFrequencyBounds.min, chartFrequencyBounds.max, showPlot]);
 
   useEffect(() => {
     const handleResize = () => {
       const container = pitchChartContainerRef.current;
       const chart = pitchChartRef.current;
-      if (!container || !chart) {
+      if (!container || !chart || !showPlot) {
         return;
       }
       const width = container.clientWidth || 320;
@@ -832,7 +894,7 @@ export default function HomePage(): JSX.Element {
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [showPlot]);
 
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
@@ -958,7 +1020,7 @@ export default function HomePage(): JSX.Element {
           const rms = Math.sqrt(sumSquares / analyserBufferRef.current.length) || 1e-8;
           splDb = 20 * Math.log10(rms);
           if (now - lastSplLogRef.current > 200) {
-            console.log("SPL (dBFS):", splDb.toFixed(1));
+            // console.log("SPL (dBFS):", splDb.toFixed(1));
             lastSplLogRef.current = now;
           }
         }
@@ -999,16 +1061,18 @@ export default function HomePage(): JSX.Element {
           setPitchOutOfRange(false);
         }
 
-        setPitchSamples((prev) => {
-          const next = [...prev, { pitch: voiceValue, clarity }];
-          const limit = 150;
-          return next.length > limit ? next.slice(next.length - limit) : next;
-        });
-        setTargetHistory((prev) => {
-          const next = [...prev, targetValue];
-          const limit = 150;
-          return next.length > limit ? next.slice(next.length - limit) : next;
-        });
+        if (isAudioPlaying) {
+          setPitchSamples((prev) => {
+            const next = [...prev, { pitch: voiceValue, clarity }];
+            const limit = 150;
+            return next.length > limit ? next.slice(next.length - limit) : next;
+          });
+          setTargetHistory((prev) => {
+            const next = [...prev, targetValue];
+            const limit = 150;
+            return next.length > limit ? next.slice(next.length - limit) : next;
+          });
+        }
 
         pitchRafRef.current = requestAnimationFrame(detectPitch);
       };
@@ -1270,9 +1334,20 @@ export default function HomePage(): JSX.Element {
         </div>
         <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
         <p style={{ margin: "0 0 12px" }}>Nota voce: {currentVoiceNoteLabel}</p>
-        <div style={{ height: `${PITCH_CHART_HEIGHT}px` }}>
-          <div ref={pitchChartContainerRef} style={{ height: "100%", width: "100%" }} />
+        <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: "8px" }}>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setShowPlot((prev) => !prev)}
+          >
+            {showPlot ? "Hide plot" : "Show plot"}
+          </button>
         </div>
+        {showPlot && (
+          <div style={{ height: `${PITCH_CHART_HEIGHT}px` }}>
+            <div ref={pitchChartContainerRef} style={{ height: "100%", width: "100%" }} />
+          </div>
+        )}
         <div className="pitch-warning-slot">
           {pitchOutOfRange ? (
             <button
