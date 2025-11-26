@@ -1340,7 +1340,7 @@ export default function HomePage(): JSX.Element {
             className="secondary-button"
             onClick={() => setShowPlot((prev) => !prev)}
           >
-            {showPlot ? "Hide plot" : "Show plot"}
+            {showPlot ? "Nascondi grafico" : "Mostra grafico"}
           </button>
         </div>
         {showPlot && (
