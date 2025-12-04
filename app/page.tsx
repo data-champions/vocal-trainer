@@ -1354,9 +1354,20 @@ export default function HomePage(): JSX.Element {
         >
           {pitchComparisonLabel ?? "🎵"}
         </div>
-        <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
-        <p style={{ margin: "0 0 12px" }}>Nota voce: {currentVoiceNoteLabel}</p>
-        <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: "8px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+            marginBottom: "8px"
+          }}
+        >
+          <div>
+            <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
+            <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p>
+          </div>
           <button
             type="button"
             className="secondary-button"
