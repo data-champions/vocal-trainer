@@ -12,9 +12,9 @@ body {
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  background: radial-gradient(circle at top, rgba(30, 64, 175, 0.35), transparent 50%),
-    radial-gradient(circle at bottom, rgba(59, 130, 246, 0.25), transparent 60%),
-    #020617;
+  background: radial-gradient(circle at 20% 20%, rgba(148, 163, 184, 0.14), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(226, 232, 240, 0.12), transparent 55%),
+    #0b0c10;
 }
 
 main {
@@ -27,6 +27,27 @@ main {
   padding: 48px clamp(24px, 6vw, 56px);
   margin: clamp(32px, 6vh, 80px) auto;
   color: inherit;
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 14px clamp(20px, 6vw, 40px);
+  }
+
+  label {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .toggle-group {
+    gap: 4px;
+    padding: 3px;
+  }
+
+  .toggle-option {
+    padding: 8px 12px;
+    font-size: 0.6rem;
+  }
 }
 
 h1 {
@@ -59,9 +80,10 @@ legend {
 }
 
 label {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(160px, 1.1fr) 2fr;
+  align-items: center;
+  gap: 12px;
   font-size: 0.95rem;
   margin-bottom: 16px;
 }
