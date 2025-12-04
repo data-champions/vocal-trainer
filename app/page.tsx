@@ -350,17 +350,14 @@ export default function HomePage(): JSX.Element {
   const [noteCount, setNoteCount] = useState(3);
   const [playMode, setPlayMode] = useState<"single" | "loop">("single");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
-  const [isRendering, setIsRendering] = useState(false);
   const [voiceFrequency, setVoiceFrequency] = useState<number | null>(null);
   const [currentTargetFrequency, setCurrentTargetFrequency] = useState<number | null>(null);
   const [currentTargetNote, setCurrentTargetNote] = useState("");
   const [pitchSamples, setPitchSamples] = useState<PitchSample[]>([]);
   const [targetHistory, setTargetHistory] = useState<(number | null)[]>([]);
   const [pitchStatus, setPitchStatus] = useState<"idle" | "starting" | "ready" | "error">("idle");
-  const [pitchError, setPitchError] = useState<string | null>(null);
   const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
   const [noiseThreshold, setNoiseThreshold] = useState(30);
@@ -422,7 +419,6 @@ export default function HomePage(): JSX.Element {
 
       const requestId = generationIdRef.current + 1;
       generationIdRef.current = requestId;
-      setIsRendering(true);
       setFeedback({
         type: "info",
         message: isPianoReady ? "Sto preparando un vero pianoforte..." : "Carico i campioni del pianoforte..."
@@ -476,9 +472,7 @@ export default function HomePage(): JSX.Element {
         }
         return false;
       } finally {
-        if (generationIdRef.current === requestId) {
-          setIsRendering(false);
-        }
+        // no-op
       }
     },
     [noteCount, duration, notationMode, playMode, isPianoReady]
@@ -592,26 +586,6 @@ export default function HomePage(): JSX.Element {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
-    };
-  }, [audioUrl]);
-
-  useEffect(() => {
-    const audioElement = audioElementRef.current;
-    if (!audioElement) {
-      setIsPlaying(false);
-      return;
-    }
-    const handlePlayEvent = () => setIsPlaying(true);
-    const handlePauseEvent = () => setIsPlaying(false);
-
-    audioElement.addEventListener("play", handlePlayEvent);
-    audioElement.addEventListener("pause", handlePauseEvent);
-    audioElement.addEventListener("ended", handlePauseEvent);
-
-    return () => {
-      audioElement.removeEventListener("play", handlePlayEvent);
-      audioElement.removeEventListener("pause", handlePauseEvent);
-      audioElement.removeEventListener("ended", handlePauseEvent);
     };
   }, [audioUrl]);
 
@@ -784,18 +758,7 @@ export default function HomePage(): JSX.Element {
     return getPitchAdvice(currentTargetFrequency, voiceFrequency);
   }, [audioUrl, currentTargetFrequency, voiceFrequency, pitchStatus]);
 
-  const pitchStatusLabel = useMemo(() => {
-    switch (pitchStatus) {
-      case "ready":
-        return "Microfono attivo";
-      case "starting":
-        return "Attivazione microfono...";
-      case "error":
-        return pitchError ?? "Errore microfono";
-      default:
-        return "Microfono inattivo";
-    }
-  }, [pitchStatus, pitchError]);
+  const isPitchReady = pitchStatus === "ready";
 
   useEffect(() => {
     if (pitchStatus !== "ready") {
@@ -953,7 +916,6 @@ export default function HomePage(): JSX.Element {
     }
     try {
       setPitchStatus("starting");
-      setPitchError(null);
       if (!navigator.mediaDevices) {
         throw new Error("Media devices non disponibili");
       }
@@ -1083,7 +1045,6 @@ export default function HomePage(): JSX.Element {
     } catch (error) {
       console.error("Impossibile avviare la pitch detection", error);
       setPitchStatus("error");
-      setPitchError("Consenti l'accesso al microfono per rilevare la voce.");
     }
   }, [pitchStatus, selectedRangeFrequencies.min, selectedRangeFrequencies.max, voiceDetected]);
 
@@ -1249,18 +1210,19 @@ export default function HomePage(): JSX.Element {
               display: "flex",
               flexWrap: "wrap",
               alignItems: "center",
-              gap: "8px",
+              gap: "6px",
               justifyContent: "space-between",
               marginBottom: "10px"
             }}
           >
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
               <button
                 className="secondary-button"
                 type="button"
                 aria-label="Abbassa nota di mezzo tono"
                 onClick={() => handleHalfStep(-1)}
                 disabled={!canStepDown}
+                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
               >
                 ⬇️ Nota giù
               </button>
@@ -1270,6 +1232,7 @@ export default function HomePage(): JSX.Element {
                 aria-label="Alza nota di mezzo tono"
                 onClick={() => handleHalfStep(1)}
                 disabled={!canStepUp}
+                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
               >
                 ⬆️ Nota su
               </button>
@@ -1278,19 +1241,11 @@ export default function HomePage(): JSX.Element {
                 type="button"
                 aria-pressed={playMode === "loop"}
                 onClick={toggleLoopMode}
+                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
               >
                 🔁 {playMode === "loop" ? "Ripeti attivo" : "Ripeti"}
               </button>
             </div>
-            <span style={{ fontSize: "0.9rem", opacity: 0.85 }}>
-              {isRendering
-                ? "Preparazione audio..."
-                : hasAudio
-                  ? isPlaying
-                    ? "Riproduzione in corso"
-                    : "Player pronto: usa i controlli qui sotto"
-                  : "Seleziona una nota per generare l'audio automaticamente."}
-            </span>
           </div>
           <audio
             key={audioUrl ?? "audio-player"}
@@ -1302,119 +1257,114 @@ export default function HomePage(): JSX.Element {
             aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
             style={{ width: "100%" }}
           />
-          <p style={{ margin: "8px 0 0", fontSize: "0.95rem", opacity: hasAudio ? 0.9 : 0.65 }}>
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontSize: "0.95rem",
+              opacity: hasAudio ? 0.9 : 1,
+              color: hasAudio ? "inherit" : "#ff4d4f",
+              fontWeight: hasAudio ? 500 : 800
+            }}
+          >
             {hasAudio
-              ? `Sequenza: ${sequenceDescription || "pronta alla riproduzione"}`
-              : "🎵 Seleziona una nota: l'audio sarà generato in automatico e potrai usare i controlli qui sopra."}
+              ? ``
+              : "🎵 Seleziona una nota per iniziare: l'audio sarà generato in automatico e potrai usare i controlli qui sopra."}
           </p>
         {/* </div> */}
       </fieldset>
-
-      <section className="player-card" style={{ marginTop: "16px" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-          <div>
-            <h2 style={{ margin: 0 }}>Rilevamento intonazione</h2>
-            <p style={{ margin: 0, fontSize: "0.9rem", opacity: 0.8 }}>{pitchStatusLabel}</p>
-          </div>
-          {pitchStatus === "ready" ? (
-            <span style={{ fontWeight: 600 }}>🎙️ Microfono attivo</span>
-          ) : (
-            <button
-              className={`secondary-button microphone-button microphone-button--error`}
-              type="button"
-              onClick={startPitchDetection}
-              disabled={pitchStatus === "starting"}
-            >
-              {pitchStatus === "starting" ? "Attivazione..." : "Abilita microfono"}
-            </button>
-          )}
-        </div>
-        {pitchError && (
-          <p className="error-text" style={{ marginTop: "8px" }}>
-            {pitchError}
+      {!isPitchReady ? (
+        <div className="player-card" style={{ marginTop: "16px" }}>
+          <p style={{ margin: 0, color: "#ff4d4f", fontWeight: 800 }}>
+            autorizzare il microfono per usare le funzionalita&apos; di rilevamento vocale
           </p>
-        )}
-        <label className="noise-filter-control" style={{ width: "100%", marginTop: pitchError ? "4px" : "12px" }}>
-          <span>Filtro rumore microfono (soglia dB): {noiseThreshold.toFixed(0)}</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={noiseThreshold}
-            onChange={(event) => setNoiseThreshold(Number(event.target.value))}
-          />
-        </label>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "12px",
-            flexWrap: "wrap",
-            marginTop: "12px",
-            marginBottom: "8px"
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            <div>
-              <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
-              <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p>
-            </div>
-            <div
-              style={{
-                fontSize: "2.4rem",
-                minWidth: "64px",
-                textAlign: "center",
-                opacity: pitchComparisonLabel ? 1 : 0.4
-              }}
-            >
-              {pitchComparisonLabel ?? "🎵"}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => setShowPlot((prev) => !prev)}
-          >
-            {showPlot ? "Nascondi grafico" : "Mostra grafico"}
-          </button>
         </div>
-        {showPlot && (
-          <div style={{ height: `${PITCH_CHART_HEIGHT}px` }}>
-            <div ref={pitchChartContainerRef} style={{ height: "100%", width: "100%" }} />
-          </div>
-        )}
-        <div className="pitch-warning-slot">
-          {pitchOutOfRange ? (
-            <button
-              type="button"
-              className="secondary-button flash-button"
-              style={{
-                backgroundColor: "#ff6b6b",
-                borderColor: "#ff6b6b",
-                color: "#fff"
-              }}
-            >
-              Pitch fuori dai limiti, controlla l&aposestensione vocale
-            </button>
-          ) : (
-            !voiceDetected && (
+      ) : (
+        <fieldset className="player-card" style={{ marginTop: "16px" }}>
+          <legend>Rilevamento intonazione</legend>
+          <label className="noise-filter-control" style={{ width: "100%", marginTop: "8px" }}>
+            <span>Filtro rumore microfono (soglia dB): {noiseThreshold.toFixed(0)}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={noiseThreshold}
+              onChange={(event) => setNoiseThreshold(Number(event.target.value))}
+            />
+          </label>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+              marginTop: "12px",
+              marginBottom: "8px"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              <div>
+                <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
+                <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p>
+              </div>
               <div
-                className="secondary-button"
                 style={{
-                  backgroundColor: "#2a2e52",
-                  borderColor: "#394070",
-                  color: "#cbd5f5",
-                  opacity: 0.9
+                  fontSize: "2.4rem",
+                  minWidth: "64px",
+                  textAlign: "center",
+                  opacity: pitchComparisonLabel ? 1 : 0.4
                 }}
               >
-                Nessun audio rilevato
+                {pitchComparisonLabel ?? "🎵"}
               </div>
-            )
+            </div>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setShowPlot((prev) => !prev)}
+              style={{ padding: "6px 10px", fontSize: "0.9rem" }}
+            >
+              {showPlot ? "Nascondi grafico" : "Mostra grafico"}
+            </button>
+          </div>
+          {showPlot && (
+            <div style={{ height: `${PITCH_CHART_HEIGHT}px` }}>
+              <div ref={pitchChartContainerRef} style={{ height: "100%", width: "100%" }} />
+            </div>
           )}
-        </div>
-      </section>
+          <div className="pitch-warning-slot">
+            {pitchOutOfRange ? (
+              <button
+                type="button"
+                className="secondary-button flash-button"
+                style={{
+                  backgroundColor: "#ff6b6b",
+                  borderColor: "#ff6b6b",
+                  color: "#fff"
+                }}
+              >
+                Pitch fuori dai limiti, controlla l&apos;estensione vocale
+              </button>
+            ) : (
+              !voiceDetected && (
+                <div
+                  className="secondary-button"
+                  style={{
+                    backgroundColor: "#2a2e52",
+                    borderColor: "#394070",
+                    color: "#cbd5f5",
+                    opacity: 0.9
+                  }}
+                >
+                  Nessun audio rilevato
+                </div>
+              )
+            )}
+          </div>
+        </fieldset>
+      )}
+
     </main>
   );
 }
