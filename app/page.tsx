@@ -1363,6 +1363,7 @@ export default function HomePage(): JSX.Element {
               type="button"
               className="secondary-button"
               onClick={() => setShowPlot((prev) => !prev)}
+              style={{ padding: "6px 10px", fontSize: "0.9rem" }}
             >
               {showPlot ? "Nascondi grafico" : "Mostra grafico"}
             </button>
