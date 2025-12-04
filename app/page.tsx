@@ -1113,7 +1113,7 @@ export default function HomePage(): JSX.Element {
               </button>
             </div>
           </div>
-          <label htmlFor="vocal-range-select" style={{ marginTop: "12px", display: "block" }}>
+          <label htmlFor="vocal-range-select" style={{ marginTop: "12px" }}>
             Estensione vocale
             <select
               id="vocal-range-select"
@@ -1185,7 +1185,6 @@ export default function HomePage(): JSX.Element {
                 </option>
               ))}
             </select>
-            <small>Massimo disponibile: {Math.min(maxNotes, 16)}</small>
           </label>
 
           {sequence.length > 0 && (
