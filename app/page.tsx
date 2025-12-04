@@ -350,10 +350,8 @@ export default function HomePage(): JSX.Element {
   const [noteCount, setNoteCount] = useState(3);
   const [playMode, setPlayMode] = useState<"single" | "loop">("single");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
-  const [isRendering, setIsRendering] = useState(false);
   const [voiceFrequency, setVoiceFrequency] = useState<number | null>(null);
   const [currentTargetFrequency, setCurrentTargetFrequency] = useState<number | null>(null);
   const [currentTargetNote, setCurrentTargetNote] = useState("");
@@ -422,7 +420,6 @@ export default function HomePage(): JSX.Element {
 
       const requestId = generationIdRef.current + 1;
       generationIdRef.current = requestId;
-      setIsRendering(true);
       setFeedback({
         type: "info",
         message: isPianoReady ? "Sto preparando un vero pianoforte..." : "Carico i campioni del pianoforte..."
@@ -476,9 +473,7 @@ export default function HomePage(): JSX.Element {
         }
         return false;
       } finally {
-        if (generationIdRef.current === requestId) {
-          setIsRendering(false);
-        }
+        // no-op
       }
     },
     [noteCount, duration, notationMode, playMode, isPianoReady]
@@ -592,26 +587,6 @@ export default function HomePage(): JSX.Element {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
-    };
-  }, [audioUrl]);
-
-  useEffect(() => {
-    const audioElement = audioElementRef.current;
-    if (!audioElement) {
-      setIsPlaying(false);
-      return;
-    }
-    const handlePlayEvent = () => setIsPlaying(true);
-    const handlePauseEvent = () => setIsPlaying(false);
-
-    audioElement.addEventListener("play", handlePlayEvent);
-    audioElement.addEventListener("pause", handlePauseEvent);
-    audioElement.addEventListener("ended", handlePauseEvent);
-
-    return () => {
-      audioElement.removeEventListener("play", handlePlayEvent);
-      audioElement.removeEventListener("pause", handlePauseEvent);
-      audioElement.removeEventListener("ended", handlePauseEvent);
     };
   }, [audioUrl]);
 
@@ -784,18 +759,6 @@ export default function HomePage(): JSX.Element {
     return getPitchAdvice(currentTargetFrequency, voiceFrequency);
   }, [audioUrl, currentTargetFrequency, voiceFrequency, pitchStatus]);
 
-  const pitchStatusLabel = useMemo(() => {
-    switch (pitchStatus) {
-      case "ready":
-        return "Microfono attivo";
-      case "starting":
-        return "Attivazione microfono...";
-      case "error":
-        return pitchError ?? "Errore microfono";
-      default:
-        return "Microfono inattivo";
-    }
-  }, [pitchStatus, pitchError]);
   const isPitchReady = pitchStatus === "ready";
 
   useEffect(() => {
@@ -1315,7 +1278,7 @@ export default function HomePage(): JSX.Element {
       {!isPitchReady ? (
         <div className="player-card" style={{ marginTop: "16px" }}>
           <p style={{ margin: 0, color: "#ff4d4f", fontWeight: 800 }}>
-            autorizzare il microfono per usare le funzionalita' di rilevamento vocale
+            autorizzare il microfono per usare le funzionalita&apos; di rilevamento vocale
           </p>
         </div>
       ) : (
