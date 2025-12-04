@@ -1243,10 +1243,7 @@ export default function HomePage(): JSX.Element {
 
       <fieldset style={{ marginTop: "16px" }}>
         <legend>Modalità e riproduzione</legend>
-        <p style={{ margin: "0 0 8px", fontSize: "0.95rem" }}>
-          Il player resta sempre visibile: seleziona una nota o modifica la sequenza e l&apos;audio verrà aggiornato automaticamente.
-        </p>
-        <div className="player-card" style={{ marginTop: "12px" }}>
+        {/* <div className="player-card" style={{ marginTop: "12px" }}> */}
           <div
             style={{
               display: "flex",
@@ -1310,7 +1307,7 @@ export default function HomePage(): JSX.Element {
               ? `Sequenza: ${sequenceDescription || "pronta alla riproduzione"}`
               : "🎵 Seleziona una nota: l'audio sarà generato in automatico e potrai usare i controlli qui sopra."}
           </p>
-        </div>
+        {/* </div> */}
       </fieldset>
 
       <section className="player-card" style={{ marginTop: "16px" }}>
