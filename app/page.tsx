@@ -1281,7 +1281,7 @@ export default function HomePage(): JSX.Element {
         <fieldset className="player-card" style={{ marginTop: "16px" }}>
           <legend>Rilevamento intonazione</legend>
           <label className="noise-filter-control" style={{ width: "100%", marginTop: "8px" }}>
-            <span>Filtro rumore microfono (soglia dB): {noiseThreshold.toFixed(0)}</span>
+            <span>Filtro rumore (soglia dB): {noiseThreshold.toFixed(0)}</span>
             <input
               type="range"
               min={0}
