@@ -358,7 +358,6 @@ export default function HomePage(): JSX.Element {
   const [pitchSamples, setPitchSamples] = useState<PitchSample[]>([]);
   const [targetHistory, setTargetHistory] = useState<(number | null)[]>([]);
   const [pitchStatus, setPitchStatus] = useState<"idle" | "starting" | "ready" | "error">("idle");
-  const [pitchError, setPitchError] = useState<string | null>(null);
   const [pitchOutOfRange, setPitchOutOfRange] = useState(false);
   const [isPianoReady, setIsPianoReady] = useState(pianoSamplesReady);
   const [noiseThreshold, setNoiseThreshold] = useState(30);
@@ -917,7 +916,6 @@ export default function HomePage(): JSX.Element {
     }
     try {
       setPitchStatus("starting");
-      setPitchError(null);
       if (!navigator.mediaDevices) {
         throw new Error("Media devices non disponibili");
       }
@@ -1047,7 +1045,6 @@ export default function HomePage(): JSX.Element {
     } catch (error) {
       console.error("Impossibile avviare la pitch detection", error);
       setPitchStatus("error");
-      setPitchError("Consenti l'accesso al microfono per rilevare la voce.");
     }
   }, [pitchStatus, selectedRangeFrequencies.min, selectedRangeFrequencies.max, voiceDetected]);
 
