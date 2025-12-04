@@ -1396,7 +1396,7 @@ export default function HomePage(): JSX.Element {
                 color: "#fff"
               }}
             >
-              Pitch fuori dai limiti, controlla l'estensione vocale
+              Pitch fuori dai limiti, controlla l&aposestensione vocale
             </button>
           ) : (
             !voiceDetected && (
