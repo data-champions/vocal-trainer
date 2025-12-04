@@ -1246,34 +1246,6 @@ export default function HomePage(): JSX.Element {
         <p style={{ margin: "0 0 8px", fontSize: "0.95rem" }}>
           Il player resta sempre visibile: seleziona una nota o modifica la sequenza e l&apos;audio verrà aggiornato automaticamente.
         </p>
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            flexWrap: "wrap",
-            alignItems: "center",
-            marginBottom: "8px"
-          }}
-        >
-          <button
-            className="secondary-button"
-            type="button"
-            aria-label="Abbassa nota di mezzo tono"
-            onClick={() => handleHalfStep(-1)}
-            disabled={!canStepDown}
-          >
-            ⬇️ Nota giù
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            aria-label="Alza nota di mezzo tono"
-            onClick={() => handleHalfStep(1)}
-            disabled={!canStepUp}
-          >
-            ⬆️ Nota su
-          </button>
-        </div>
         <div className="player-card" style={{ marginTop: "12px" }}>
           <div
             style={{
@@ -1286,6 +1258,24 @@ export default function HomePage(): JSX.Element {
             }}
           >
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                className="secondary-button"
+                type="button"
+                aria-label="Abbassa nota di mezzo tono"
+                onClick={() => handleHalfStep(-1)}
+                disabled={!canStepDown}
+              >
+                ⬇️ Nota giù
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                aria-label="Alza nota di mezzo tono"
+                onClick={() => handleHalfStep(1)}
+                disabled={!canStepUp}
+              >
+                ⬆️ Nota su
+              </button>
               <button
                 className={`secondary-button${playMode === "loop" ? " active" : ""}`}
                 type="button"
