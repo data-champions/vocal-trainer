@@ -350,6 +350,7 @@ export default function HomePage(): JSX.Element {
   const [noteCount, setNoteCount] = useState(3);
   const [playMode, setPlayMode] = useState<"single" | "loop">("single");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
   const [isRendering, setIsRendering] = useState(false);
@@ -584,6 +585,26 @@ export default function HomePage(): JSX.Element {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
+    };
+  }, [audioUrl]);
+
+  useEffect(() => {
+    const audioElement = audioElementRef.current;
+    if (!audioElement) {
+      setIsPlaying(false);
+      return;
+    }
+    const handlePlayEvent = () => setIsPlaying(true);
+    const handlePauseEvent = () => setIsPlaying(false);
+
+    audioElement.addEventListener("play", handlePlayEvent);
+    audioElement.addEventListener("pause", handlePauseEvent);
+    audioElement.addEventListener("ended", handlePauseEvent);
+
+    return () => {
+      audioElement.removeEventListener("play", handlePlayEvent);
+      audioElement.removeEventListener("pause", handlePauseEvent);
+      audioElement.removeEventListener("ended", handlePauseEvent);
     };
   }, [audioUrl]);
 
@@ -914,6 +935,12 @@ export default function HomePage(): JSX.Element {
   };
 
   const handleStop = () => {
+    const audioElement = audioElementRef.current;
+    if (audioElement) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+    }
+    setIsPlaying(false);
     generationIdRef.current += 1;
     setIsRendering(false);
     playbackScheduleRef.current = null;
@@ -936,6 +963,37 @@ export default function HomePage(): JSX.Element {
     setSequenceDescription("");
     setFeedback({ type: "info", message: "Riproduzione interrotta." });
   };
+
+  const togglePlayback = useCallback(async () => {
+    const audioElement = audioElementRef.current;
+    if (!audioElement) {
+      if (!selectedNote) {
+        setFeedback({ type: "warning", message: "Scegli una nota prima di riprodurre." });
+        return;
+      }
+      await generateAudioForNote(selectedNote);
+      return;
+    }
+
+    if (audioElement.paused || audioElement.ended) {
+      if (audioElement.ended) {
+        audioElement.currentTime = 0;
+      }
+      try {
+        await audioElement.play();
+      } catch (error) {
+        console.error("Impossibile avviare la riproduzione", error);
+        setIsPlaying(false);
+        setFeedback({ type: "warning", message: "Impossibile avviare la riproduzione automatica, prova con il pulsante Play." });
+      }
+    } else {
+      audioElement.pause();
+    }
+  }, [generateAudioForNote, selectedNote]);
+
+  const toggleLoopMode = useCallback(() => {
+    setPlayMode((prev) => (prev === "loop" ? "single" : "loop"));
+  }, []);
 
   const pausePlayback = useCallback(() => {
     const audioElement = audioElementRef.current;
@@ -1288,6 +1346,82 @@ export default function HomePage(): JSX.Element {
         </fieldset>
       </div>
 
+      <fieldset style={{ marginTop: "16px" }}>
+        <legend>Modalità e riproduzione</legend>
+        <p style={{ margin: "0 0 8px", fontSize: "0.95rem" }}>
+          Il player si attiva automaticamente quando generi una nuova sequenza. Usa i controlli rapidi per gestire play e ripetizione.
+        </p>
+        <div className="player-card" style={{ marginTop: "12px" }}>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: "8px",
+              justifyContent: "space-between",
+              marginBottom: "10px"
+            }}
+          >
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={togglePlayback}
+                disabled={isRendering || (!hasAudio && !selectedNote)}
+              >
+                {isRendering ? "🎹 In preparazione" : isPlaying ? "⏸️ Pausa" : "▶️ Play"}
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={handleStop}
+                disabled={!audioUrl && !isRendering}
+              >
+                ⏹️ Ferma
+              </button>
+              <button
+                className={`secondary-button${playMode === "loop" ? " active" : ""}`}
+                type="button"
+                aria-pressed={playMode === "loop"}
+                onClick={toggleLoopMode}
+              >
+                🔁 {playMode === "loop" ? "Ripeti attivo" : "Ripeti"}
+              </button>
+            </div>
+            <span style={{ fontSize: "0.9rem", opacity: 0.85 }}>
+              {hasAudio
+                ? isPlaying
+                  ? "Riproduzione in corso"
+                  : "Player pronto"
+                : "Genera una sequenza per attivare il player."}
+            </span>
+          </div>
+          {hasAudio ? (
+            <>
+              <audio
+                key={audioUrl ?? "audio-player"}
+                ref={audioElementRef}
+                controls
+                autoPlay
+                loop={playMode === "loop"}
+                src={audioUrl ?? undefined}
+                aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
+                style={{ width: "100%" }}
+              />
+              {sequenceDescription && (
+                <p style={{ margin: "8px 0 0", fontSize: "0.95rem", opacity: 0.9 }}>
+                  {`Sequenza: ${sequenceDescription}`}
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="player-placeholder">
+              🎵 Scegli una nota e premi &quot;Avvia&quot; per ascoltare la riproduzione.
+            </div>
+          )}
+        </div>
+      </fieldset>
+
       <section className="player-card" style={{ marginTop: "16px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
           <div>
@@ -1379,49 +1513,6 @@ export default function HomePage(): JSX.Element {
         </div>
       </section>
 
-      <fieldset className={!hasAudio ? "fieldset-disabled" : undefined} style={{ marginTop: "16px" }}>
-        <legend>Modalità e riproduzione</legend>
-        <div className="toggle-row">
-          <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
-            <button
-              type="button"
-              className={`toggle-option${playMode === "single" ? " active" : ""}`}
-              aria-pressed={playMode === "single"}
-              onClick={() => setPlayMode("single")}
-              disabled={!hasAudio}
-            >
-              ▶️ Play
-            </button>
-            <button
-              type="button"
-              className={`toggle-option${playMode === "loop" ? " active" : ""}`}
-              aria-pressed={playMode === "loop"}
-              onClick={() => setPlayMode("loop")}
-              disabled={!hasAudio}
-            >
-              🔁 Ripetizione infinita
-            </button>
-          </div>
-        </div>
-
-        <div className="player-card" style={{ marginTop: "12px" }}>
-          {hasAudio ? (
-            <audio
-              key={audioUrl ?? "audio-player"}
-              ref={audioElementRef}
-              controls
-              autoPlay
-              loop={playMode === "loop"}
-              src={audioUrl ?? undefined}
-              aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
-            />
-          ) : (
-            <div className="player-placeholder">
-              🎵 Scegli una nota e premi &quot;Avvia&quot; per ascoltare la riproduzione.
-            </div>
-          )}
-        </div>
-      </fieldset>
     </main>
   );
 }
