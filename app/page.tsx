@@ -1223,24 +1223,15 @@ export default function HomePage(): JSX.Element {
           </label>
         )}
 
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: "6px",
-            justifyContent: "space-between",
-            margin: "12px 0 10px"
-          }}
-        >
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        <div className="playback-actions">
+          <div>
             <button
               className="secondary-button"
               type="button"
               aria-label="Abbassa nota di mezzo tono"
               onClick={() => handleHalfStep(-1)}
               disabled={!canStepDown}
-              style={{ padding: "6px 10px", fontSize: "0.9rem" }}
+              style={{ padding: "6px 1px", fontSize: "0.8rem" }}
             >
               ⬇️ Nota giù
             </button>
@@ -1250,7 +1241,7 @@ export default function HomePage(): JSX.Element {
               aria-label="Alza nota di mezzo tono"
               onClick={() => handleHalfStep(1)}
               disabled={!canStepUp}
-              style={{ padding: "6px 10px", fontSize: "0.9rem" }}
+              style={{ padding: "6px 1px", fontSize: "0.8rem" }}
             >
               ⬆️ Nota su
             </button>
@@ -1259,7 +1250,7 @@ export default function HomePage(): JSX.Element {
               type="button"
               aria-pressed={playMode === "loop"}
               onClick={toggleLoopMode}
-              style={{ padding: "6px 10px", fontSize: "0.9rem" }}
+              style={{ padding: "6px 1px", fontSize: "0.8rem" }}
             >
               🔁 {playMode === "loop" ? "Ripeti attivo" : "Ripeti"}
             </button>
