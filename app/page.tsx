@@ -1279,7 +1279,7 @@ export default function HomePage(): JSX.Element {
           </p>
         </div>
       ) : (
-        <fieldset className="player-card" style={{ marginTop: "16px" }}>
+        <fieldset className="player-card" style={{ marginTop: "1px" }}>
           <legend>Rilevamento intonazione</legend>
 <label
   className="noise-filter-control"
@@ -1287,15 +1287,17 @@ export default function HomePage(): JSX.Element {
     width: "100%",
     marginTop: "8px",
     display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    flexWrap: "nowrap"
+    // alignItems: "center",
+    gap: "8px",
+    flexWrap: "nowrap",
+    overflow: "hidden"         // ← important
   }}
 >
   <span
     style={{
       whiteSpace: "nowrap",
-      flexShrink: 0
+      flexShrink: 0,
+      flexDirection: "row",
     }}
   >
     Filtro rumore (soglia dB): {noiseThreshold.toFixed(0)}
@@ -1309,12 +1311,16 @@ export default function HomePage(): JSX.Element {
     value={noiseThreshold}
     onChange={(event) => setNoiseThreshold(Number(event.target.value))}
     style={{
-      flex: "0 0 140px",       // ← smaller width
-      width: "140px",
-      maxWidth: "140px"
+      flexShrink: 1,            // ← allow slider to shrink
+      flexGrow: 1,              // ← fill remaining space
+      maxWidth: "160px",        // ← still keep it small
+      minWidth: "120px"   ,       // ← prevents disappearing entirely
+      flexDirection: "row",
+
     }}
   />
 </label>
+
 
           <div
             style={{
