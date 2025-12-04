@@ -581,6 +581,13 @@ export default function HomePage(): JSX.Element {
   ]);
 
   useEffect(() => {
+    if (!selectedNote) {
+      return;
+    }
+    void generateAudioForNote(selectedNote);
+  }, [selectedNote, noteCount, duration, generateAudioForNote]);
+
+  useEffect(() => {
     return () => {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
@@ -926,33 +933,6 @@ export default function HomePage(): JSX.Element {
     }
   }, [audioUrl, sequence.length, sequenceDisplay, sequenceDescription]);
 
-  const togglePlayback = useCallback(async () => {
-    const audioElement = audioElementRef.current;
-    if (!audioElement) {
-      if (!selectedNote) {
-        setFeedback({ type: "warning", message: "Scegli una nota prima di riprodurre." });
-        return;
-      }
-      await generateAudioForNote(selectedNote);
-      return;
-    }
-
-    if (audioElement.paused || audioElement.ended) {
-      if (audioElement.ended) {
-        audioElement.currentTime = 0;
-      }
-      try {
-        await audioElement.play();
-      } catch (error) {
-        console.error("Impossibile avviare la riproduzione", error);
-        setIsPlaying(false);
-        setFeedback({ type: "warning", message: "Impossibile avviare la riproduzione automatica, prova con il pulsante Play." });
-      }
-    } else {
-      audioElement.pause();
-    }
-  }, [generateAudioForNote, selectedNote]);
-
   const toggleLoopMode = useCallback(() => {
     setPlayMode((prev) => (prev === "loop" ? "single" : "loop"));
   }, []);
@@ -1264,7 +1244,7 @@ export default function HomePage(): JSX.Element {
       <fieldset style={{ marginTop: "16px" }}>
         <legend>Modalità e riproduzione</legend>
         <p style={{ margin: "0 0 8px", fontSize: "0.95rem" }}>
-          Il player si attiva automaticamente quando generi una nuova sequenza. Usa i controlli rapidi per gestire play e ripetizione.
+          Il player resta sempre visibile: seleziona una nota o modifica la sequenza e l&apos;audio verrà aggiornato automaticamente.
         </p>
         <div
           style={{
@@ -1307,14 +1287,6 @@ export default function HomePage(): JSX.Element {
           >
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
-                className="primary-button"
-                type="button"
-                onClick={togglePlayback}
-                disabled={isRendering || (!hasAudio && !selectedNote)}
-              >
-                {isRendering ? "🎹 In preparazione" : isPlaying ? "⏸️ Pausa" : "▶️ Play"}
-              </button>
-              <button
                 className={`secondary-button${playMode === "loop" ? " active" : ""}`}
                 type="button"
                 aria-pressed={playMode === "loop"}
@@ -1324,36 +1296,30 @@ export default function HomePage(): JSX.Element {
               </button>
             </div>
             <span style={{ fontSize: "0.9rem", opacity: 0.85 }}>
-              {hasAudio
-                ? isPlaying
-                  ? "Riproduzione in corso"
-                  : "Player pronto"
-                : "Genera una sequenza per attivare il player."}
+              {isRendering
+                ? "Preparazione audio..."
+                : hasAudio
+                  ? isPlaying
+                    ? "Riproduzione in corso"
+                    : "Player pronto: usa i controlli qui sotto"
+                  : "Seleziona una nota per generare l'audio automaticamente."}
             </span>
           </div>
-          {hasAudio ? (
-            <>
-              <audio
-                key={audioUrl ?? "audio-player"}
-                ref={audioElementRef}
-                controls
-                autoPlay
-                loop={playMode === "loop"}
-                src={audioUrl ?? undefined}
-                aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
-                style={{ width: "100%" }}
-              />
-              {sequenceDescription && (
-                <p style={{ margin: "8px 0 0", fontSize: "0.95rem", opacity: 0.9 }}>
-                  {`Sequenza: ${sequenceDescription}`}
-                </p>
-              )}
-            </>
-          ) : (
-            <div className="player-placeholder">
-              🎵 Scegli una nota e premi &quot;Play&quot; per ascoltare la riproduzione.
-            </div>
-          )}
+          <audio
+            key={audioUrl ?? "audio-player"}
+            ref={audioElementRef}
+            controls
+            autoPlay
+            loop={playMode === "loop"}
+            src={audioUrl ?? ""}
+            aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
+            style={{ width: "100%" }}
+          />
+          <p style={{ margin: "8px 0 0", fontSize: "0.95rem", opacity: hasAudio ? 0.9 : 0.65 }}>
+            {hasAudio
+              ? `Sequenza: ${sequenceDescription || "pronta alla riproduzione"}`
+              : "🎵 Seleziona una nota: l'audio sarà generato in automatico e potrai usare i controlli qui sopra."}
+          </p>
         </div>
       </fieldset>
 
