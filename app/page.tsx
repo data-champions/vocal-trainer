@@ -1113,7 +1113,7 @@ export default function HomePage(): JSX.Element {
               </button>
             </div>
           </div>
-          <label htmlFor="vocal-range-select" style={{ marginTop: "12px" }}>
+          <label className="stacked-label" htmlFor="vocal-range-select" style={{ marginTop: "12px" }}>
             Estensione vocale
             <select
               id="vocal-range-select"
@@ -1136,7 +1136,7 @@ export default function HomePage(): JSX.Element {
 
         <fieldset>
           <legend>Sequenza e controlli</legend>
-          <label htmlFor="note-select">
+          <label className="stacked-label" htmlFor="note-select">
             Nota iniziale
             <select
               id="note-select"
@@ -1155,7 +1155,7 @@ export default function HomePage(): JSX.Element {
             </select>
           </label>
 
-          <label htmlFor="duration-slider">
+          <label className="stacked-label" htmlFor="duration-slider">
             Durata di ogni nota: {duration.toFixed(1)} secondi
             <input
               id="duration-slider"
