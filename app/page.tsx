@@ -926,44 +926,6 @@ export default function HomePage(): JSX.Element {
     }
   }, [audioUrl, sequence.length, sequenceDisplay, sequenceDescription]);
 
-  const handlePlay = () => {
-    if (!selectedNote) {
-      setFeedback({ type: "warning", message: "Scegli una nota prima di avviare la riproduzione." });
-      return;
-    }
-    void generateAudioForNote(selectedNote);
-  };
-
-  const handleStop = () => {
-    const audioElement = audioElementRef.current;
-    if (audioElement) {
-      audioElement.pause();
-      audioElement.currentTime = 0;
-    }
-    setIsPlaying(false);
-    generationIdRef.current += 1;
-    setIsRendering(false);
-    playbackScheduleRef.current = null;
-    setCurrentTargetFrequency(null);
-    setCurrentTargetNote("");
-    setPitchSamples([]);
-    setTargetHistory([]);
-    setPitchOutOfRange(false);
-    outOfRangeAccumRef.current = 0;
-    silenceAccumRef.current = 0;
-    lastPitchTimestampRef.current = null;
-    setVoiceDetected(true);
-    lastScheduleNoteRef.current = null;
-    setAudioUrl((prev) => {
-      if (prev) {
-        URL.revokeObjectURL(prev);
-      }
-      return null;
-    });
-    setSequenceDescription("");
-    setFeedback({ type: "info", message: "Riproduzione interrotta." });
-  };
-
   const togglePlayback = useCallback(async () => {
     const audioElement = audioElementRef.current;
     if (!audioElement) {
@@ -1291,53 +1253,6 @@ export default function HomePage(): JSX.Element {
             </p>
           )}
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: "12px",
-              marginTop: "16px"
-            }}
-          >
-            <button
-              className="primary-button"
-              type="button"
-              onClick={handlePlay}
-              disabled={!selectedNote || isRendering}
-              style={{ width: "80%", minWidth: 0 }}
-            >
-              {isRendering ? "🎹 In preparazione" : "▶️ Avvia"}
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={handleStop}
-              disabled={!audioUrl && !isRendering}
-              style={{ width: "80%", minWidth: 0 }}
-            >
-              ⏹️ Ferma
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              aria-label="Abbassa nota di mezzo tono"
-              onClick={() => handleHalfStep(-1)}
-              disabled={!canStepDown}
-              style={{ width: "80%", minWidth: 0 }}
-            >
-              ⬇️ Nota giù
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              aria-label="Alza nota di mezzo tono"
-              onClick={() => handleHalfStep(1)}
-              disabled={!canStepUp}
-              style={{ width: "80%", minWidth: 0 }}
-            >
-              ⬆️ Nota su
-            </button>
-          </div>
           {feedback && (
             <div className={`feedback ${feedback.type}`} style={{ marginTop: "12px" }}>
               {feedback.message}
@@ -1351,6 +1266,34 @@ export default function HomePage(): JSX.Element {
         <p style={{ margin: "0 0 8px", fontSize: "0.95rem" }}>
           Il player si attiva automaticamente quando generi una nuova sequenza. Usa i controlli rapidi per gestire play e ripetizione.
         </p>
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            flexWrap: "wrap",
+            alignItems: "center",
+            marginBottom: "8px"
+          }}
+        >
+          <button
+            className="secondary-button"
+            type="button"
+            aria-label="Abbassa nota di mezzo tono"
+            onClick={() => handleHalfStep(-1)}
+            disabled={!canStepDown}
+          >
+            ⬇️ Nota giù
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            aria-label="Alza nota di mezzo tono"
+            onClick={() => handleHalfStep(1)}
+            disabled={!canStepUp}
+          >
+            ⬆️ Nota su
+          </button>
+        </div>
         <div className="player-card" style={{ marginTop: "12px" }}>
           <div
             style={{
@@ -1370,14 +1313,6 @@ export default function HomePage(): JSX.Element {
                 disabled={isRendering || (!hasAudio && !selectedNote)}
               >
                 {isRendering ? "🎹 In preparazione" : isPlaying ? "⏸️ Pausa" : "▶️ Play"}
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={handleStop}
-                disabled={!audioUrl && !isRendering}
-              >
-                ⏹️ Ferma
               </button>
               <button
                 className={`secondary-button${playMode === "loop" ? " active" : ""}`}
@@ -1416,7 +1351,7 @@ export default function HomePage(): JSX.Element {
             </>
           ) : (
             <div className="player-placeholder">
-              🎵 Scegli una nota e premi &quot;Avvia&quot; per ascoltare la riproduzione.
+              🎵 Scegli una nota e premi &quot;Play&quot; per ascoltare la riproduzione.
             </div>
           )}
         </div>
