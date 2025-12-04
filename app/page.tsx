@@ -310,8 +310,7 @@ function getPitchAdvice(targetHz: number | null, voiceHz: number | null): string
   const delta = targetHz - voiceHz;
   const toleranceHz = getToleranceHzByNote(targetHz, 4); // 1/4 tone tolerance
   const diffHz = Math.abs(delta);
-  console.log(`Target: ${targetHz.toFixed(2)} Hz, Voice: ${voiceHz.toFixed(2)} Hz, Delta: ${delta.toFixed(2)} Hz, Tolerance: ${toleranceHz.toFixed(2)} Hz`);
-  if (Math.abs(delta) <= toleranceHz) {
+  if (diffHz <= toleranceHz) {
     return "✅";
   }
   return delta > 0 ? "⬆️" : "⬇️";
