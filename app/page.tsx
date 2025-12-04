@@ -287,12 +287,21 @@ function frequencyToNearestNoteName(frequency: number | null): string | null {
   return `${noteName}${octave}`;
 }
 
-function getToleranceHzByNote(freqNote:number, toneFractionTolerance: number = 1): number {
-  // Calculate the frequency tolerance based on the number of semitones
-  // tonetolerance = 1 means 1 tone tolerance, 2 means half tone tolerance, 4 is 1/4 tone, etc.
-  const toleranceFactor = Math.pow(2, 1 / (toneFractionTolerance * 12));
-  const toleranceByNote = freqNote * toleranceFactor // * deltaTolerance;
-  return toleranceByNote;
+function getToleranceHzByNote(freqNote: number, toneFractionTolerance: number = 1): number {
+  // toneFractionTolerance = 1 → 1 tone
+  // toneFractionTolerance = 2 → 1/2 tone
+  // toneFractionTolerance = 4 → 1/4 tone
+  
+  const semitoneFraction = 2 / toneFractionTolerance; 
+  const ratio = Math.pow(2, semitoneFraction / 12);
+  
+  const deltaHz = freqNote * (ratio - 1);
+  
+  console.log(
+    `Tolerance for ${freqNote.toFixed(2)} Hz at 1/${toneFractionTolerance} tone: ±${deltaHz.toFixed(2)} Hz`
+  );
+
+  return deltaHz;
 }
 
 
