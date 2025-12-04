@@ -43,7 +43,6 @@ const PIANO_SAMPLE_MAP = {
 } as const;
 
 const PIANO_RELEASE_SECONDS = 2.5;
-const PITCH_ADVICE_TOLERANCE_HZ = 18;
 const PITCH_LOG_INTERVAL_MS = 10;
 
 // Whole steps (2) and half steps (1) for a major scale: T-T-ST-T-T-T-ST
@@ -288,6 +287,15 @@ function frequencyToNearestNoteName(frequency: number | null): string | null {
   return `${noteName}${octave}`;
 }
 
+function getToleranceHzByNote(freqNote:number, toneFractionTolerance: number = 1): number {
+  // Calculate the frequency tolerance based on the number of semitones
+  // tonetolerance = 1 means 1 tone tolerance, 2 means half tone tolerance, 4 is 1/4 tone, etc.
+  const toleranceFactor = Math.pow(2, 1 / (toneFractionTolerance * 12));
+  const toleranceByNote = freqNote * toleranceFactor // * deltaTolerance;
+  return toleranceByNote;
+}
+
+
 function getPitchAdvice(targetHz: number | null, voiceHz: number | null): string | null {
   if (
     targetHz === null ||
@@ -300,7 +308,10 @@ function getPitchAdvice(targetHz: number | null, voiceHz: number | null): string
     return null;
   }
   const delta = targetHz - voiceHz;
-  if (Math.abs(delta) <= PITCH_ADVICE_TOLERANCE_HZ) {
+  const toleranceHz = getToleranceHzByNote(targetHz, 4); // 1/4 tone tolerance
+  const diffHz = Math.abs(delta);
+  console.log(`Target: ${targetHz.toFixed(2)} Hz, Voice: ${voiceHz.toFixed(2)} Hz, Delta: ${delta.toFixed(2)} Hz, Tolerance: ${toleranceHz.toFixed(2)} Hz`);
+  if (Math.abs(delta) <= toleranceHz) {
     return "✅";
   }
   return delta > 0 ? "⬆️" : "⬇️";
