@@ -1311,16 +1311,14 @@ export default function HomePage(): JSX.Element {
           </p>
         {/* </div> */}
       </fieldset>
-
-      <section className="player-card" style={{ marginTop: "16px" }}>
+      <fieldset className="player-card" style={{ marginTop: "16px" }}>
+        <legend>Rilevamento intonazione</legend>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-          <div>
-            <h2 style={{ margin: 0 }}>Rilevamento intonazione</h2>
-            <p style={{ margin: 0, fontSize: "0.9rem", opacity: 0.8 }}>{pitchStatusLabel}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.95rem", opacity: 0.85 }}>{pitchStatusLabel}</span>
+            {pitchStatus === "ready" && <span style={{ fontWeight: 600 }}>🎙️ Microfono attivo</span>}
           </div>
-          {pitchStatus === "ready" ? (
-            <span style={{ fontWeight: 600 }}>🎙️ Microfono attivo</span>
-          ) : (
+          {pitchStatus !== "ready" && (
             <button
               className={`secondary-button microphone-button microphone-button--error`}
               type="button"
@@ -1398,7 +1396,7 @@ export default function HomePage(): JSX.Element {
                 color: "#fff"
               }}
             >
-              Pitch fuori dai limiti, controlla l&aposestensione vocale
+              Pitch fuori dai limiti, controlla l&apos;estensione vocale
             </button>
           ) : (
             !voiceDetected && (
@@ -1416,7 +1414,7 @@ export default function HomePage(): JSX.Element {
             )
           )}
         </div>
-      </section>
+      </fieldset>
     </main>
   );
 }
