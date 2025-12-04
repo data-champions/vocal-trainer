@@ -1222,7 +1222,7 @@ export default function HomePage(): JSX.Element {
                 aria-label="Abbassa nota di mezzo tono"
                 onClick={() => handleHalfStep(-1)}
                 disabled={!canStepDown}
-                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
+                style={{ padding: "1px 10px", fontSize: "0.9rem" }}
               >
                 ⬇️ Nota giù
               </button>
@@ -1232,7 +1232,7 @@ export default function HomePage(): JSX.Element {
                 aria-label="Alza nota di mezzo tono"
                 onClick={() => handleHalfStep(1)}
                 disabled={!canStepUp}
-                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
+                style={{ padding: "1px 10px", fontSize: "0.9rem" }}
               >
                 ⬆️ Nota su
               </button>
@@ -1241,7 +1241,7 @@ export default function HomePage(): JSX.Element {
                 type="button"
                 aria-pressed={playMode === "loop"}
                 onClick={toggleLoopMode}
-                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
+                style={{ padding: "1px 10px", fontSize: "0.9rem" }}
               >
                 🔁 {playMode === "loop" ? "Ripeti attivo" : "Ripeti"}
               </button>
@@ -1281,17 +1281,41 @@ export default function HomePage(): JSX.Element {
       ) : (
         <fieldset className="player-card" style={{ marginTop: "16px" }}>
           <legend>Rilevamento intonazione</legend>
-          <label className="noise-filter-control" style={{ width: "100%", marginTop: "8px" }}>
-            <span>Filtro rumore microfono (soglia dB): {noiseThreshold.toFixed(0)}</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={noiseThreshold}
-              onChange={(event) => setNoiseThreshold(Number(event.target.value))}
-            />
-          </label>
+<label
+  className="noise-filter-control"
+  style={{
+    width: "100%",
+    marginTop: "8px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "nowrap"
+  }}
+>
+  <span
+    style={{
+      whiteSpace: "nowrap",
+      flexShrink: 0
+    }}
+  >
+    Filtro rumore (soglia dB): {noiseThreshold.toFixed(0)}
+  </span>
+
+  <input
+    type="range"
+    min={0}
+    max={100}
+    step={1}
+    value={noiseThreshold}
+    onChange={(event) => setNoiseThreshold(Number(event.target.value))}
+    style={{
+      flex: "0 0 140px",       // ← smaller width
+      width: "140px",
+      maxWidth: "140px"
+    }}
+  />
+</label>
+
           <div
             style={{
               display: "flex",
