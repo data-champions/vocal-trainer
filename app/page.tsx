@@ -1347,26 +1347,30 @@ export default function HomePage(): JSX.Element {
         </label>
         <div
           style={{
-            fontSize: "2.4rem",
-            marginTop: "12px",
-            opacity: pitchComparisonLabel ? 1 : 0.4
-          }}
-        >
-          {pitchComparisonLabel ?? "🎵"}
-        </div>
-        <div
-          style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             gap: "12px",
             flexWrap: "wrap",
+            marginTop: "12px",
             marginBottom: "8px"
           }}
         >
-          <div>
-            <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
-            <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
+              <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p>
+            </div>
+            <div
+              style={{
+                fontSize: "2.4rem",
+                minWidth: "64px",
+                textAlign: "center",
+                opacity: pitchComparisonLabel ? 1 : 0.4
+              }}
+            >
+              {pitchComparisonLabel ?? "🎵"}
+            </div>
           </div>
           <button
             type="button"
@@ -1392,7 +1396,7 @@ export default function HomePage(): JSX.Element {
                 color: "#fff"
               }}
             >
-            Pitch fuori dai limiti, controlla l&apos;estensione vocale
+              Pitch fuori dai limiti, controlla l'estensione vocale
             </button>
           ) : (
             !voiceDetected && (
@@ -1411,7 +1415,6 @@ export default function HomePage(): JSX.Element {
           )}
         </div>
       </section>
-
     </main>
   );
 }
