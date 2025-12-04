@@ -350,6 +350,7 @@ export default function HomePage(): JSX.Element {
   const [noteCount, setNoteCount] = useState(3);
   const [playMode, setPlayMode] = useState<"single" | "loop">("single");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [sequenceDescription, setSequenceDescription] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ type: "info", message: "Seleziona una nota per iniziare." });
   const [isRendering, setIsRendering] = useState(false);
@@ -580,10 +581,37 @@ export default function HomePage(): JSX.Element {
   ]);
 
   useEffect(() => {
+    if (!selectedNote) {
+      return;
+    }
+    void generateAudioForNote(selectedNote);
+  }, [selectedNote, noteCount, duration, generateAudioForNote]);
+
+  useEffect(() => {
     return () => {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
+    };
+  }, [audioUrl]);
+
+  useEffect(() => {
+    const audioElement = audioElementRef.current;
+    if (!audioElement) {
+      setIsPlaying(false);
+      return;
+    }
+    const handlePlayEvent = () => setIsPlaying(true);
+    const handlePauseEvent = () => setIsPlaying(false);
+
+    audioElement.addEventListener("play", handlePlayEvent);
+    audioElement.addEventListener("pause", handlePauseEvent);
+    audioElement.addEventListener("ended", handlePauseEvent);
+
+    return () => {
+      audioElement.removeEventListener("play", handlePlayEvent);
+      audioElement.removeEventListener("pause", handlePauseEvent);
+      audioElement.removeEventListener("ended", handlePauseEvent);
     };
   }, [audioUrl]);
 
@@ -905,37 +933,9 @@ export default function HomePage(): JSX.Element {
     }
   }, [audioUrl, sequence.length, sequenceDisplay, sequenceDescription]);
 
-  const handlePlay = () => {
-    if (!selectedNote) {
-      setFeedback({ type: "warning", message: "Scegli una nota prima di avviare la riproduzione." });
-      return;
-    }
-    void generateAudioForNote(selectedNote);
-  };
-
-  const handleStop = () => {
-    generationIdRef.current += 1;
-    setIsRendering(false);
-    playbackScheduleRef.current = null;
-    setCurrentTargetFrequency(null);
-    setCurrentTargetNote("");
-    setPitchSamples([]);
-    setTargetHistory([]);
-    setPitchOutOfRange(false);
-    outOfRangeAccumRef.current = 0;
-    silenceAccumRef.current = 0;
-    lastPitchTimestampRef.current = null;
-    setVoiceDetected(true);
-    lastScheduleNoteRef.current = null;
-    setAudioUrl((prev) => {
-      if (prev) {
-        URL.revokeObjectURL(prev);
-      }
-      return null;
-    });
-    setSequenceDescription("");
-    setFeedback({ type: "info", message: "Riproduzione interrotta." });
-  };
+  const toggleLoopMode = useCallback(() => {
+    setPlayMode((prev) => (prev === "loop" ? "single" : "loop"));
+  }, []);
 
   const pausePlayback = useCallback(() => {
     const audioElement = audioElementRef.current;
@@ -1233,53 +1233,6 @@ export default function HomePage(): JSX.Element {
             </p>
           )}
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: "12px",
-              marginTop: "16px"
-            }}
-          >
-            <button
-              className="primary-button"
-              type="button"
-              onClick={handlePlay}
-              disabled={!selectedNote || isRendering}
-              style={{ width: "80%", minWidth: 0 }}
-            >
-              {isRendering ? "🎹 In preparazione" : "▶️ Avvia"}
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={handleStop}
-              disabled={!audioUrl && !isRendering}
-              style={{ width: "80%", minWidth: 0 }}
-            >
-              ⏹️ Ferma
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              aria-label="Abbassa nota di mezzo tono"
-              onClick={() => handleHalfStep(-1)}
-              disabled={!canStepDown}
-              style={{ width: "80%", minWidth: 0 }}
-            >
-              ⬇️ Nota giù
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              aria-label="Alza nota di mezzo tono"
-              onClick={() => handleHalfStep(1)}
-              disabled={!canStepUp}
-              style={{ width: "80%", minWidth: 0 }}
-            >
-              ⬆️ Nota su
-            </button>
-          </div>
           {feedback && (
             <div className={`feedback ${feedback.type}`} style={{ marginTop: "12px" }}>
               {feedback.message}
@@ -1287,6 +1240,75 @@ export default function HomePage(): JSX.Element {
           )}
         </fieldset>
       </div>
+
+      <fieldset style={{ marginTop: "16px" }}>
+        <legend>Modalità e riproduzione</legend>
+        {/* <div className="player-card" style={{ marginTop: "12px" }}> */}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: "8px",
+              justifyContent: "space-between",
+              marginBottom: "10px"
+            }}
+          >
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                className="secondary-button"
+                type="button"
+                aria-label="Abbassa nota di mezzo tono"
+                onClick={() => handleHalfStep(-1)}
+                disabled={!canStepDown}
+              >
+                ⬇️ Nota giù
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                aria-label="Alza nota di mezzo tono"
+                onClick={() => handleHalfStep(1)}
+                disabled={!canStepUp}
+              >
+                ⬆️ Nota su
+              </button>
+              <button
+                className={`secondary-button${playMode === "loop" ? " active" : ""}`}
+                type="button"
+                aria-pressed={playMode === "loop"}
+                onClick={toggleLoopMode}
+              >
+                🔁 {playMode === "loop" ? "Ripeti attivo" : "Ripeti"}
+              </button>
+            </div>
+            <span style={{ fontSize: "0.9rem", opacity: 0.85 }}>
+              {isRendering
+                ? "Preparazione audio..."
+                : hasAudio
+                  ? isPlaying
+                    ? "Riproduzione in corso"
+                    : "Player pronto: usa i controlli qui sotto"
+                  : "Seleziona una nota per generare l'audio automaticamente."}
+            </span>
+          </div>
+          <audio
+            key={audioUrl ?? "audio-player"}
+            ref={audioElementRef}
+            controls
+            autoPlay
+            loop={playMode === "loop"}
+            src={audioUrl ?? ""}
+            aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
+            style={{ width: "100%" }}
+          />
+          <p style={{ margin: "8px 0 0", fontSize: "0.95rem", opacity: hasAudio ? 0.9 : 0.65 }}>
+            {hasAudio
+              ? `Sequenza: ${sequenceDescription || "pronta alla riproduzione"}`
+              : "🎵 Seleziona una nota: l'audio sarà generato in automatico e potrai usare i controlli qui sopra."}
+          </p>
+        {/* </div> */}
+      </fieldset>
 
       <section className="player-card" style={{ marginTop: "16px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
@@ -1325,16 +1347,31 @@ export default function HomePage(): JSX.Element {
         </label>
         <div
           style={{
-            fontSize: "2.4rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
             marginTop: "12px",
-            opacity: pitchComparisonLabel ? 1 : 0.4
+            marginBottom: "8px"
           }}
         >
-          {pitchComparisonLabel ?? "🎵"}
-        </div>
-        <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
-        <p style={{ margin: "0 0 12px" }}>Nota voce: {currentVoiceNoteLabel}</p>
-        <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ margin: "0 0 4px" }}>Nota pianoforte: {currentTargetNoteLabel}</p>
+              <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p>
+            </div>
+            <div
+              style={{
+                fontSize: "2.4rem",
+                minWidth: "64px",
+                textAlign: "center",
+                opacity: pitchComparisonLabel ? 1 : 0.4
+              }}
+            >
+              {pitchComparisonLabel ?? "🎵"}
+            </div>
+          </div>
           <button
             type="button"
             className="secondary-button"
@@ -1359,7 +1396,7 @@ export default function HomePage(): JSX.Element {
                 color: "#fff"
               }}
             >
-            Pitch fuori dai limiti, controlla l&apos;estensione vocale
+              Pitch fuori dai limiti, controlla l&aposestensione vocale
             </button>
           ) : (
             !voiceDetected && (
@@ -1378,50 +1415,6 @@ export default function HomePage(): JSX.Element {
           )}
         </div>
       </section>
-
-      <fieldset className={!hasAudio ? "fieldset-disabled" : undefined} style={{ marginTop: "16px" }}>
-        <legend>Modalità e riproduzione</legend>
-        <div className="toggle-row">
-          <div className="toggle-group" role="group" aria-label="Seleziona la modalità di riproduzione">
-            <button
-              type="button"
-              className={`toggle-option${playMode === "single" ? " active" : ""}`}
-              aria-pressed={playMode === "single"}
-              onClick={() => setPlayMode("single")}
-              disabled={!hasAudio}
-            >
-              ▶️ Play
-            </button>
-            <button
-              type="button"
-              className={`toggle-option${playMode === "loop" ? " active" : ""}`}
-              aria-pressed={playMode === "loop"}
-              onClick={() => setPlayMode("loop")}
-              disabled={!hasAudio}
-            >
-              🔁 Ripetizione infinita
-            </button>
-          </div>
-        </div>
-
-        <div className="player-card" style={{ marginTop: "12px" }}>
-          {hasAudio ? (
-            <audio
-              key={audioUrl ?? "audio-player"}
-              ref={audioElementRef}
-              controls
-              autoPlay
-              loop={playMode === "loop"}
-              src={audioUrl ?? undefined}
-              aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
-            />
-          ) : (
-            <div className="player-placeholder">
-              🎵 Scegli una nota e premi &quot;Avvia&quot; per ascoltare la riproduzione.
-            </div>
-          )}
-        </div>
-      </fieldset>
     </main>
   );
 }
