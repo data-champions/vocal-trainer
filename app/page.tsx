@@ -1249,18 +1249,19 @@ export default function HomePage(): JSX.Element {
               display: "flex",
               flexWrap: "wrap",
               alignItems: "center",
-              gap: "8px",
+              gap: "6px",
               justifyContent: "space-between",
               marginBottom: "10px"
             }}
           >
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
               <button
                 className="secondary-button"
                 type="button"
                 aria-label="Abbassa nota di mezzo tono"
                 onClick={() => handleHalfStep(-1)}
                 disabled={!canStepDown}
+                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
               >
                 ⬇️ Nota giù
               </button>
@@ -1270,6 +1271,7 @@ export default function HomePage(): JSX.Element {
                 aria-label="Alza nota di mezzo tono"
                 onClick={() => handleHalfStep(1)}
                 disabled={!canStepUp}
+                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
               >
                 ⬆️ Nota su
               </button>
@@ -1278,19 +1280,11 @@ export default function HomePage(): JSX.Element {
                 type="button"
                 aria-pressed={playMode === "loop"}
                 onClick={toggleLoopMode}
+                style={{ padding: "6px 10px", fontSize: "0.9rem" }}
               >
                 🔁 {playMode === "loop" ? "Ripeti attivo" : "Ripeti"}
               </button>
             </div>
-            <span style={{ fontSize: "0.9rem", opacity: 0.85 }}>
-              {isRendering
-                ? "Preparazione audio..."
-                : hasAudio
-                  ? isPlaying
-                    ? "Riproduzione in corso"
-                    : "Player pronto: usa i controlli qui sotto"
-                  : "Seleziona una nota per generare l'audio automaticamente."}
-            </span>
           </div>
           <audio
             key={audioUrl ?? "audio-player"}
@@ -1302,10 +1296,18 @@ export default function HomePage(): JSX.Element {
             aria-label={sequenceDescription ? `Sequenza: ${sequenceDescription}` : "Audio generato"}
             style={{ width: "100%" }}
           />
-          <p style={{ margin: "8px 0 0", fontSize: "0.95rem", opacity: hasAudio ? 0.9 : 0.65 }}>
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontSize: "0.95rem",
+              opacity: hasAudio ? 0.9 : 1,
+              color: hasAudio ? "inherit" : "#ff4d4f",
+              fontWeight: hasAudio ? 500 : 800
+            }}
+          >
             {hasAudio
-              ? `Sequenza: ${sequenceDescription || "pronta alla riproduzione"}`
-              : "🎵 Seleziona una nota: l'audio sarà generato in automatico e potrai usare i controlli qui sopra."}
+              ? ``
+              : "🎵 Seleziona una nota per iniziare: l'audio sarà generato in automatico e potrai usare i controlli qui sopra."}
           </p>
         {/* </div> */}
       </fieldset>
