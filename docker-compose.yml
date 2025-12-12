@@ -49,8 +49,8 @@ services:
       # # use your actual ACME resolver if needed:
       # # - traefik.http.routers.preview.tls.certresolver=letsencrypt
       # # send to the same FE service/port
-      - traefik.http.routers.woc-preview.service=voice_trainer
-      - traefik.http.routers.woc-preview.priority=150
+      # - traefik.http.routers.woc-preview.service=voice_trainer
+      # - traefik.http.routers.woc-preview.priority=150
 
       # # HTTP -> HTTPS for previews
       # - traefik.http.routers.woc-preview-http.rule=HostRegexp(`pr{num:[0-9]+}.weather-on-calendar.com`)
