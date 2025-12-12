@@ -8,8 +8,6 @@ services:
     #   - uv-cache:/root/.cache/uv
     # environment:
     #   UVICORN_RELOAD: "true"
-    ports:
-      - "8501:8501"
     # env_file:
       # made in dev, in prod/staging use only env vars from coolify
       # - .env
@@ -23,9 +21,11 @@ services:
       - traefik.http.routers.voice_trainer.rule=Host(`cantami.net`)
       - traefik.http.routers.voice_trainer.entrypoints=https
       - traefik.http.routers.voice_trainer.tls=true
-      - traefik.http.routers.voice_trainer.service=voice_trainer_fe
+      - traefik.http.routers.voice_trainer.service=voice_trainer
       - traefik.http.routers.voice_trainer.priority=100
 
+      # Service definition 
+      # - traefik.http.services.voice_trainer.loadbalancer.server.port=8501
       # -------------------
       # HTTP apex → HTTPS redirect
       # -------------------
