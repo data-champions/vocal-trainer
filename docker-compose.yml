@@ -25,7 +25,7 @@ services:
       - traefik.http.routers.voice_trainer.priority=100
 
       # Service definition 
-      # - traefik.http.services.voice_trainer.loadbalancer.server.port=8501
+      - traefik.http.services.voice_trainer.loadbalancer.server.port=8501
       # -------------------
       # HTTP apex → HTTPS redirect
       # -------------------
