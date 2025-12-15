@@ -2,8 +2,6 @@
 const { spawn, execSync } = require('child_process');
 const os = require('os');
 
-
-
 function getLocalIP() {
   const ifaces = os.networkInterfaces();
   let ipAddress;
@@ -18,8 +16,6 @@ function getLocalIP() {
 
   return ipAddress;
 }
-
-console.log(`Local IP Address: ${getLocalIP()}`);
 
 
 function getNetworkUrl(port) {
@@ -49,7 +45,6 @@ function getNetworkUrl(port) {
 const port = process.env.PORT || '8501';
 const networkUrl = getNetworkUrl(port);
 
-console.log(`Local:   http://localhost:${port}`);
 if (networkUrl) {
   console.log(`Network: ${networkUrl}`);
 } else {
