@@ -1,8 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import uPlot from 'uplot';
-import 'uplot/dist/uPlot.min.css';
 import {
   DEFAULT_NOTATION_MODE,
   PITCH_CHART_HEIGHT,
@@ -24,6 +22,12 @@ import { getPitchAdvice } from '../lib/pitch';
 import { usePianoSequence } from '../lib/hooks/usePianoSequence';
 import { usePitchDetection } from '../lib/hooks/usePitchDetection';
 import { useEventListener, useRafLoop } from '../lib/hooks/common';
+import { NotationToggle } from './components/NotationToggle';
+import { RangeSelector } from './components/RangeSelector';
+import { SequenceControls } from './components/SequenceControls';
+import { PlaybackControls } from './components/PlaybackControls';
+import { PitchStatus } from './components/PitchStatus';
+import { PitchChart } from './components/PitchChart';
 
 export default function HomePage(): JSX.Element {
   const [notationMode, setNotationMode] =
@@ -39,8 +43,6 @@ export default function HomePage(): JSX.Element {
     number | null
   >(null);
   const [currentTargetNote, setCurrentTargetNote] = useState('');
-  const pitchChartContainerRef = useRef<HTMLDivElement | null>(null);
-  const pitchChartRef = useRef<uPlot | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const currentTargetFrequencyRef = useRef<number | null>(null);
   const currentTargetNoteRef = useRef<string>('');
@@ -107,22 +109,6 @@ export default function HomePage(): JSX.Element {
   useEffect(() => {
     currentTargetNoteRef.current = currentTargetNote;
   }, [currentTargetNote]);
-
-  useEffect(() => {
-    return () => {
-      if (pitchChartRef.current) {
-        pitchChartRef.current.destroy();
-        pitchChartRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!showPlot && pitchChartRef.current) {
-      pitchChartRef.current.destroy();
-      pitchChartRef.current = null;
-    }
-  }, [showPlot]);
 
   useEffect(() => {
     const maxSelectable = Math.min(maxNotes, 16);
@@ -305,112 +291,6 @@ export default function HomePage(): JSX.Element {
   }, [pitchStatus]);
 
   useEffect(() => {
-    if (!showPlot) {
-      return;
-    }
-    const container = pitchChartContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const maxLength = Math.max(
-      voicePitchHistory.length,
-      targetHistory.length,
-      1
-    );
-    const labels = Array.from({ length: maxLength }, (_, index) => index);
-    const voicedData = labels.map((_, idx) => {
-      const value = voicePitchHistory[idx] ?? null;
-      if (value === null) {
-        return null;
-      }
-      if (
-        value < chartFrequencyBounds.min ||
-        value > chartFrequencyBounds.max
-      ) {
-        return null;
-      }
-      return value;
-    });
-    const targetData = labels.map((_, idx) => targetHistory[idx] ?? null);
-    const chartData: uPlot.AlignedData = [labels, targetData, voicedData];
-    const width = container.clientWidth || 320;
-
-    if (!pitchChartRef.current) {
-      pitchChartRef.current = new uPlot(
-        {
-          width,
-          height: PITCH_CHART_HEIGHT,
-          scales: {
-            x: { time: false },
-            y: {
-              min: chartFrequencyBounds.min,
-              max: chartFrequencyBounds.max,
-            },
-          },
-          axes: [
-            { show: false },
-            {
-              label: 'Frequenza (Hz)',
-              stroke: '#cbd5f5',
-              grid: { stroke: 'rgba(255,255,255,0.1)' },
-            },
-          ],
-          legend: { show: false },
-          series: [
-            {},
-            {
-              label: 'Nota bersaglio (Hz)',
-              stroke: 'rgba(80, 220, 120, 1)',
-              width: 2,
-              spanGaps: true,
-              points: { show: false },
-            },
-            {
-              label: 'Voce (Hz)',
-              stroke: 'rgba(255, 214, 102, 1)',
-              width: 2,
-              spanGaps: true,
-              points: { show: false },
-            },
-          ],
-        },
-        chartData,
-        container
-      );
-      return;
-    }
-
-    pitchChartRef.current.setScale('y', {
-      min: chartFrequencyBounds.min,
-      max: chartFrequencyBounds.max,
-    });
-    pitchChartRef.current.setData(chartData);
-  }, [
-    voicePitchHistory,
-    targetHistory,
-    chartFrequencyBounds.min,
-    chartFrequencyBounds.max,
-    showPlot,
-  ]);
-
-  const handleResize = useCallback(() => {
-    const container = pitchChartContainerRef.current;
-    const chart = pitchChartRef.current;
-    if (!container || !chart || !showPlot) {
-      return;
-    }
-    const width = container.clientWidth || 320;
-    chart.setSize({ width, height: PITCH_CHART_HEIGHT });
-  }, [showPlot]);
-
-  useEffect(() => {
-    handleResize();
-  }, [handleResize]);
-
-  useEventListener('resize', handleResize);
-
-  useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
       return;
     }
@@ -467,325 +347,64 @@ export default function HomePage(): JSX.Element {
       <div className="card-grid">
         <fieldset>
           <legend>Impostazioni di notazione</legend>
-          <div className="toggle-row">
-            <p>Notazione</p>
-            <div
-              className="toggle-group"
-              role="group"
-              aria-label="Seleziona la notazione"
-            >
-              <button
-                type="button"
-                className={`toggle-option${
-                  notationMode === 'italian' ? ' active' : ''
-                }`}
-                aria-pressed={notationMode === 'italian'}
-                onClick={() => setNotationMode('italian')}
-              >
-                🇮🇹 Italiana
-              </button>
-              <button
-                type="button"
-                className={`toggle-option${
-                  notationMode === 'english' ? ' active' : ''
-                }`}
-                aria-pressed={notationMode === 'english'}
-                onClick={() => setNotationMode('english')}
-              >
-                🇬🇧 Inglese
-              </button>
-            </div>
-          </div>
-          <label
-            className="stacked-label"
-            htmlFor="vocal-range-select"
-            style={{ marginTop: '12px' }}
-          >
-            Estensione vocale
-            <select
-              id="vocal-range-select"
-              value={vocalRange}
-              onChange={(event) =>
-                setVocalRange(event.target.value as VocalRangeKey)
-              }
-            >
-              {(Object.keys(VOCAL_RANGES) as VocalRangeKey[]).map(
-                (rangeKey) => {
-                  const range = VOCAL_RANGES[rangeKey];
-                  const minLabel = formatNoteByNotation(
-                    range.min,
-                    notationMode
-                  );
-                  const maxLabel = formatNoteByNotation(
-                    range.max,
-                    notationMode
-                  );
-                  return (
-                    <option key={rangeKey} value={rangeKey}>
-                      {`${range.label} (${minLabel}–${maxLabel})`}
-                    </option>
-                  );
-                }
-              )}
-            </select>
-          </label>
+          <NotationToggle
+            notationMode={notationMode}
+            onChange={setNotationMode}
+          />
+          <RangeSelector
+            vocalRange={vocalRange}
+            onChange={setVocalRange}
+            notationMode={notationMode}
+          />
         </fieldset>
 
-        <fieldset>
-          <legend>Sequenza e controlli</legend>
-          <label className="stacked-label" htmlFor="note-select">
-            Nota iniziale
-            <select
-              id="note-select"
-              className={!selectedNote ? 'error-input' : undefined}
-              value={selectedNote}
-              onChange={(event) =>
-                setSelectedNote(event.target.value as PianoKey)
-              }
-            >
-              <option value="" disabled>
-                Seleziona la nota
-              </option>
-              {availableNotes.map((note) => (
-                <option key={note} value={note}>
-                  {formatNoteByNotation(note, notationMode)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="stacked-label" htmlFor="duration-slider">
-            Durata di ogni nota: {duration.toFixed(1)} secondi
-            <input
-              id="duration-slider"
-              type="range"
-              min={0.1}
-              max={5}
-              step={0.1}
-              value={duration}
-              onChange={(event) => setDuration(Number(event.target.value))}
-            />
-          </label>
-
-          <label htmlFor="note-count">
-            Numero di note ascendenti
-            <select
-              id="note-count"
-              value={String(noteCount)}
-              onChange={(event) => setNoteCount(Number(event.target.value))}
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map(
-                (option) => (
-                  <option
-                    key={option}
-                    value={option}
-                    disabled={option > Math.min(maxNotes, 16)}
-                  >
-                    {option}
-                  </option>
-                )
-              )}
-            </select>
-          </label>
-
-          {sequence.length > 0 && (
-            <p className="note-display">
-              Sequenza selezionata: {sequenceDisplay}
-            </p>
-          )}
-
-          {feedback && (
-            <div
-              className={`feedback ${feedback.type}`}
-              style={{ marginTop: '12px' }}
-            >
-              {feedback.message}
-            </div>
-          )}
-        </fieldset>
+        <SequenceControls
+          selectedNote={selectedNote}
+          onSelectNote={setSelectedNote}
+          availableNotes={availableNotes}
+          notationMode={notationMode}
+          duration={duration}
+          onDurationChange={setDuration}
+          noteCount={noteCount}
+          onNoteCountChange={setNoteCount}
+          maxNotes={maxNotes}
+          sequenceDisplay={sequenceDisplay}
+          feedback={feedback}
+        />
       </div>
 
-      <fieldset style={{ marginTop: '16px' }}>
-        <legend>Modalità e riproduzione</legend>
-        {!isPitchReady ? (
-          <div className="player-card" style={{ marginTop: '8px' }}>
-            <p style={{ margin: 0, color: '#ff4d4f', fontWeight: 800 }}>
-              autorizzare il microfono per usare le funzionalita&apos; di
-              rilevamento vocale
-            </p>
-          </div>
-        ) : (
-          <label
-            className="noise-filter-control"
-            style={{ width: '100%', marginTop: '8px' }}
-          >
-            <span>Filtro rumore (soglia dB): {noiseThreshold.toFixed(0)}</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={noiseThreshold}
-              onChange={(event) =>
-                setNoiseThreshold(Number(event.target.value))
-              }
-            />
-          </label>
-        )}
+      <PlaybackControls
+        isPitchReady={isPitchReady}
+        noiseThreshold={noiseThreshold}
+        onNoiseThresholdChange={setNoiseThreshold}
+        canStepDown={canStepDown}
+        canStepUp={canStepUp}
+        onHalfStep={handleHalfStep}
+        playMode={playMode}
+        onToggleLoop={toggleLoopMode}
+        audioElementRef={audioElementRef}
+        audioUrl={audioUrl}
+        sequenceDescription={sequenceDescription}
+        hasAudio={hasAudio}
+      />
 
-        <div className="playback-actions">
-          <div>
-            <button
-              className="secondary-button"
-              type="button"
-              aria-label="Abbassa nota di mezzo tono"
-              onClick={() => handleHalfStep(-1)}
-              disabled={!canStepDown}
-              style={{ padding: '6px 1px', fontSize: '0.8rem' }}
-            >
-              ⬇️ Nota giù
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              aria-label="Alza nota di mezzo tono"
-              onClick={() => handleHalfStep(1)}
-              disabled={!canStepUp}
-              style={{ padding: '6px 1px', fontSize: '0.8rem' }}
-            >
-              ⬆️ Nota su
-            </button>
-            <button
-              className={`secondary-button${
-                playMode === 'loop' ? ' active' : ''
-              }`}
-              type="button"
-              aria-pressed={playMode === 'loop'}
-              onClick={toggleLoopMode}
-              style={{ padding: '6px 1px', fontSize: '0.8rem' }}
-            >
-              🔁 {playMode === 'loop' ? 'Ripeti attivo' : 'Ripeti'}
-            </button>
-          </div>
-        </div>
-
-        <audio
-          key={audioUrl ?? 'audio-player'}
-          ref={audioElementRef}
-          controls
-          autoPlay
-          loop={playMode === 'loop'}
-          src={audioUrl ?? ''}
-          aria-label={
-            sequenceDescription
-              ? `Sequenza: ${sequenceDescription}`
-              : 'Audio generato'
-          }
-          style={{ width: '100%' }}
-        />
-        <p
-          style={{
-            margin: '8px 0 0',
-            fontSize: '0.95rem',
-            opacity: hasAudio ? 0.9 : 1,
-            color: hasAudio ? 'inherit' : '#ff4d4f',
-            fontWeight: hasAudio ? 500 : 800,
-          }}
-        >
-          {hasAudio
-            ? ``
-            : "🎵 Seleziona una nota per iniziare: l'audio sarà generato in automatico e potrai usare i controlli qui sopra."}
-        </p>
-
-        {isPitchReady && (
-          <>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: '12px',
-                flexWrap: 'wrap',
-                marginTop: '18px',
-                marginBottom: '8px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div>
-                  <p style={{ margin: '0 0 4px' }}>
-                    Nota pianoforte: {currentTargetNoteLabel}
-                  </p>
-                  <p style={{ margin: 0 }}>
-                    Nota voce: {currentVoiceNoteLabel}
-                  </p>
-                </div>
-                <div
-                  style={{
-                    fontSize: '2.4rem',
-                    minWidth: '64px',
-                    textAlign: 'center',
-                    opacity: pitchComparisonLabel ? 1 : 0.4,
-                  }}
-                >
-                  {pitchComparisonLabel ?? '🎵'}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setShowPlot((prev) => !prev)}
-                style={{ padding: '6px 10px', fontSize: '0.9rem' }}
-              >
-                {showPlot ? 'Nascondi grafico' : 'Mostra grafico'}
-              </button>
-            </div>
-            {showPlot && (
-              <div style={{ height: `${PITCH_CHART_HEIGHT}px` }}>
-                <div
-                  ref={pitchChartContainerRef}
-                  style={{ height: '100%', width: '100%' }}
-                />
-              </div>
-            )}
-            <div className="pitch-warning-slot">
-              {pitchOutOfRange ? (
-                <button
-                  type="button"
-                  className="secondary-button flash-button"
-                  style={{
-                    backgroundColor: '#ff6b6b',
-                    borderColor: '#ff6b6b',
-                    color: '#fff',
-                  }}
-                >
-                  Pitch fuori dai limiti, controlla l&apos;estensione vocale
-                </button>
-              ) : (
-                !voiceDetected && (
-                  <div
-                    className="secondary-button"
-                    style={{
-                      backgroundColor: '#2a2e52',
-                      borderColor: '#394070',
-                      color: '#cbd5f5',
-                      opacity: 0.9,
-                    }}
-                  >
-                    Nessun audio rilevato
-                  </div>
-                )
-              )}
-            </div>
-          </>
-        )}
-      </fieldset>
+      <PitchStatus
+        isPitchReady={isPitchReady}
+        currentTargetNoteLabel={currentTargetNoteLabel}
+        currentVoiceNoteLabel={currentVoiceNoteLabel}
+        pitchComparisonLabel={pitchComparisonLabel}
+        showPlot={showPlot}
+        onTogglePlot={() => setShowPlot((prev) => !prev)}
+        pitchOutOfRange={pitchOutOfRange}
+        voiceDetected={voiceDetected}
+      />
+      <PitchChart
+        showPlot={showPlot}
+        height={PITCH_CHART_HEIGHT}
+        voicePitchHistory={voicePitchHistory}
+        targetHistory={targetHistory}
+        chartFrequencyBounds={chartFrequencyBounds}
+      />
     </main>
   );
 }
