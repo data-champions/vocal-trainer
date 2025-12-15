@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "prepare": "husky install",
-    "show_network_ip": "sh -c \"ip route get 1 | awk '{print $7}' | head -n 1 | sed 's/$/:8501/'| sed -E 's/ via 192.[0-9.]+//' \""
+    "show_network_ip": "node ./scripts/dev-with-ip.js"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
