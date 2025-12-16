@@ -9,7 +9,7 @@ if (!googleClientId || !googleClientSecret) {
   throw new Error('Missing Google OAuth environment variables.');
 }
 
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: 'jwt' },
   pages: {
