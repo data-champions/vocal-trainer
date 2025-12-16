@@ -288,7 +288,7 @@ export default function HomePage(): JSX.Element {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [pitchStatus]);
+  }, [pitchStatus, targetFrequencyRef, voiceFrequencyRef]);
 
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
@@ -297,7 +297,13 @@ export default function HomePage(): JSX.Element {
     if (sequenceDescription !== sequenceDisplay) {
       setSequenceDescription(sequenceDisplay);
     }
-  }, [audioUrl, sequence.length, sequenceDisplay, sequenceDescription]);
+  }, [
+    audioUrl,
+    sequence.length,
+    sequenceDisplay,
+    sequenceDescription,
+    setSequenceDescription,
+  ]);
 
   const toggleLoopMode = useCallback(() => {
     setPlayMode((prev) => (prev === 'loop' ? 'single' : 'loop'));

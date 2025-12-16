@@ -224,7 +224,7 @@ export function usePitchDetection({
     selectedRangeRef,
     targetFrequencyRef,
     voiceDetected,
-    cleanup,
+    voiceFrequencyRef,
   ]);
 
   useRafLoop(detectPitch, pitchStatus === 'ready');
