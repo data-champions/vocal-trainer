@@ -98,7 +98,7 @@ export function PlaybackControls({
         controls
         autoPlay
         loop={playMode === 'loop'}
-        src={audioUrl ?? ''}
+        src={audioUrl ?? undefined}
         aria-label={
           sequenceDescription
             ? `Sequenza: ${sequenceDescription}`
