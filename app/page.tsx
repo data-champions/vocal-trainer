@@ -28,6 +28,7 @@ import { SequenceControls } from './components/SequenceControls';
 import { PlaybackControls } from './components/PlaybackControls';
 import { PitchStatus } from './components/PitchStatus';
 import { PitchChart } from './components/PitchChart';
+import { LoginButtons } from './components/LoginButtons';
 
 export default function HomePage(): JSX.Element {
   const [notationMode, setNotationMode] =
@@ -346,8 +347,11 @@ export default function HomePage(): JSX.Element {
   );
 
   return (
-    <main>
-      <h1>Voice trainer 🎹</h1>
+    <main id="home">
+      <div className="page-header">
+        <h1>Voice trainer 🎹</h1>
+        <LoginButtons />
+      </div>
       <div className="card-grid">
         <fieldset>
           <legend>Impostazioni di notazione</legend>

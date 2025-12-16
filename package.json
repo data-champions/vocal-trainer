@@ -5,6 +5,7 @@
   "scripts": {
     "predev": "open http://localhost:8501",
     "dev": "next dev -p 8501 --hostname 0.0.0.0",
+    "dev:turbo": "next dev -p 8501 --hostname 0.0.0.0 --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,8 +14,10 @@
     "show_network_ip": "node ./scripts/dev-with-ip.js"
   },
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "chart.js": "^4.5.1",
     "next": "^15.5.7",
+    "next-auth": "^4.24.13",
     "pitchy": "^4.1.0",
     "react": "^19.2.3",
     "react-chartjs-2": "^5.3.1",
