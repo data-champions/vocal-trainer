@@ -13,11 +13,10 @@ import {
   buildAscendingNotes,
   buildSequence,
   formatNoteByNotation,
-  midiFrequency,
   noteIndex,
 } from '../notes';
 import { useLatestRef } from './common';
-import type { Feedback, PlaybackSegment, VocalRange } from '../types';
+import type { Feedback, PlaybackSegment } from '../types';
 
 type RangeBounds = { startIdx: number; endIdx: number };
 
