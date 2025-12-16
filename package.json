@@ -8,16 +8,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
     "prepare": "husky install",
     "show_network_ip": "node ./scripts/dev-with-ip.js"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
-    "next": "14.2.12",
+    "next": "^15.5.7",
     "pitchy": "^4.1.0",
-    "react": "18.3.1",
+    "react": "^19.2.3",
     "react-chartjs-2": "^5.3.1",
-    "react-dom": "18.3.1",
+    "react-dom": "^19.2.3",
     "tone": "^15.1.22",
     "uplot": "^1.6.32"
   },
@@ -26,8 +27,9 @@
     "@types/react": "18.3.9",
     "@types/react-dom": "18.3.0",
     "eslint": "8.57.1",
-    "eslint-config-next": "14.2.12",
+    "eslint-config-next": "^15.5.7",
     "husky": "^9.1.7",
-    "typescript": "5.6.3"
+    "typescript": "5.6.3",
+    "vitest": "^4.0.15"
   }
 }
