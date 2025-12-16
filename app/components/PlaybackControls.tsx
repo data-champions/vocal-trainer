@@ -80,32 +80,35 @@ export function PlaybackControls({
           >
             ⬆️ Nota su
           </button>
-          <button
-            className={`secondary-button${playMode === 'loop' ? ' active' : ''}`}
-            type="button"
-            aria-pressed={playMode === 'loop'}
-            onClick={onToggleLoop}
-            style={{ padding: '6px 1px', fontSize: '0.8rem' }}
-          >
-            🔁 {playMode === 'loop' ? 'Ripeti attivo' : 'Ripeti'}
-          </button>
         </div>
       </div>
 
-      <audio
-        key={audioUrl ?? 'audio-player'}
-        ref={audioElementRef}
-        controls
-        autoPlay
-        loop={playMode === 'loop'}
-        src={audioUrl ?? undefined}
-        aria-label={
-          sequenceDescription
-            ? `Sequenza: ${sequenceDescription}`
-            : 'Audio generato'
-        }
-        style={{ width: '100%' }}
-      />
+      <div className="audio-loop-row">
+        <audio
+          key={audioUrl ?? 'audio-player'}
+          ref={audioElementRef}
+          controls
+          autoPlay
+          loop={playMode === 'loop'}
+          src={audioUrl ?? undefined}
+          aria-label={
+            sequenceDescription
+              ? `Sequenza: ${sequenceDescription}`
+              : 'Audio generato'
+          }
+          className="audio-loop-player"
+        />
+        <button
+          className={`secondary-button loop-button${playMode === 'loop' ? ' active' : ''}`}
+          type="button"
+          aria-pressed={playMode === 'loop'}
+          onClick={onToggleLoop}
+          aria-label={playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'}
+          title={playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'}
+        >
+          🔁
+        </button>
+      </div>
       <p
         style={{
           margin: '8px 0 0',

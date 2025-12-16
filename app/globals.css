@@ -286,6 +286,38 @@ button {
   padding: 10px 12px;
 }
 
+.audio-loop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.audio-loop-player {
+  width: 100%;
+  min-width: 0;
+  display: block;
+  align-self: center;
+}
+
+.loop-button {
+  padding: 0;
+  min-width: 48px;
+  min-height: 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  font-size: 1.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  align-self: center;
+  vertical-align: middle;
+  position: relative;
+  top: 8px;
+}
+
 .note-display {
   margin: 12px 0 0;
   font-weight: 500;
