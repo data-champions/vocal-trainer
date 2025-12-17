@@ -32,3 +32,4 @@ pnpm-debug.log*
 *.swo
 *.tsbuildinfo
 .envrc
+.env
