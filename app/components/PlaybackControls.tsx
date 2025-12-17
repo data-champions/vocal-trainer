@@ -55,7 +55,9 @@ export function PlaybackControls({
             max={100}
             step={1}
             value={noiseThreshold}
-            onChange={(event) => onNoiseThresholdChange(Number(event.target.value))}
+            onChange={(event) =>
+              onNoiseThresholdChange(Number(event.target.value))
+            }
           />
         </label>
       )}
@@ -101,11 +103,15 @@ export function PlaybackControls({
           className="audio-loop-player"
         />
         <button
-          className={`secondary-button loop-button${playMode === 'loop' ? ' active' : ''}`}
+          className={`secondary-button loop-button${
+            playMode === 'loop' ? ' active' : ''
+          }`}
           type="button"
           aria-pressed={playMode === 'loop'}
           onClick={onToggleLoop}
-          aria-label={playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'}
+          aria-label={
+            playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'
+          }
           title={playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'}
         >
           🔁
@@ -127,3 +133,4 @@ export function PlaybackControls({
     </fieldset>
   );
 }
+//
