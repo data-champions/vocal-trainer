@@ -149,9 +149,9 @@ export function usePitchDetection({
     const deltaMs = now - lastTick;
     lastPitchTimestampRef.current = now;
     const buffer = analyserBufferRef.current as AnalyserBuffer;
-    const getFloatTimeDomainData = analyserRef.current
-      .getFloatTimeDomainData as (data: Float32Array) => void;
-    getFloatTimeDomainData(buffer);
+    (analyserRef.current as AnalyserNode & {
+      getFloatTimeDomainData: (data: Float32Array) => void;
+    }).getFloatTimeDomainData(buffer);
     const [pitch, clarity] = pitchDetectorRef.current.findPitch(
       analyserBufferRef.current,
       audioContextRef.current.sampleRate
