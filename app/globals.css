@@ -362,19 +362,6 @@ button:disabled {
   line-height: 1.4;
 }
 
-.note-select-row {
-  display: grid;
-  grid-template-columns: 3fr 1fr;
-  align-items: stretch;
-  gap: 8px;
-  width: 100%;
-}
-
-.note-select-row select {
-  width: 100%;
-  min-width: 0;
-}
-
 .note-step-buttons {
   display: flex;
   flex-direction: column;
@@ -385,9 +372,25 @@ button:disabled {
 .note-step-button {
   min-width: 0;
   width: 100%;
-  padding: 8px 6px;
+  padding: 6px 6px;
   font-size: 1rem;
   line-height: 1;
+}
+
+.base-note-row {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.base-note-row p {
+  margin: 0;
+}
+
+.base-note-row--full {
+  width: 100%;
 }
 
 .audio-loop-row {

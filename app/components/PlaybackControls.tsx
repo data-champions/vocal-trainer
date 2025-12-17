@@ -6,6 +6,10 @@ type PlaybackControlsProps = {
   isPitchReady: boolean;
   noiseThreshold: number;
   onNoiseThresholdChange: (value: number) => void;
+  selectedNoteLabel: string;
+  canStepDown: boolean;
+  canStepUp: boolean;
+  onHalfStep: (direction: 1 | -1) => void;
   playMode: 'single' | 'loop';
   onToggleLoop: () => void;
   audioElementRef: MutableRefObject<HTMLAudioElement | null>;
@@ -18,6 +22,10 @@ export function PlaybackControls({
   isPitchReady,
   noiseThreshold,
   onNoiseThresholdChange,
+  selectedNoteLabel,
+  canStepDown,
+  canStepUp,
+  onHalfStep,
   playMode,
   onToggleLoop,
   audioElementRef,
@@ -51,6 +59,32 @@ export function PlaybackControls({
           />
         </label>
       )}
+
+      <div className="base-note-row base-note-row--full">
+        <p style={{ margin: 0 }}>Nota base: {selectedNoteLabel || '-'}</p>
+        <div className="note-step-buttons" aria-label="Sposta nota base">
+          <button
+            className="secondary-button note-step-button"
+            type="button"
+            aria-label="Alza nota base di mezzo tono"
+            onClick={() => onHalfStep(1)}
+            disabled={!canStepUp}
+            title="Alza nota"
+          >
+            ▲
+          </button>
+          <button
+            className="secondary-button note-step-button"
+            type="button"
+            aria-label="Abbassa nota base di mezzo tono"
+            onClick={() => onHalfStep(-1)}
+            disabled={!canStepDown}
+            title="Abbassa nota"
+          >
+            ▼
+          </button>
+        </div>
+      </div>
 
       <div className="audio-loop-row">
         <audio

@@ -403,9 +403,6 @@ export default function HomePage(): JSX.Element {
           onDurationChange={setDuration}
           noteCount={noteCount}
           onNoteCountChange={setNoteCount}
-          canStepDown={canStepDown}
-          canStepUp={canStepUp}
-          onHalfStep={handleHalfStep}
           maxNotes={maxNotes}
           sequenceDisplay={sequenceDisplay}
           feedback={feedback}
@@ -416,6 +413,12 @@ export default function HomePage(): JSX.Element {
         isPitchReady={isPitchReady}
         noiseThreshold={noiseThreshold}
         onNoiseThresholdChange={setNoiseThreshold}
+        selectedNoteLabel={
+          selectedNote ? formatNoteByNotation(selectedNote, notationMode) : ''
+        }
+        canStepDown={canStepDown}
+        canStepUp={canStepUp}
+        onHalfStep={handleHalfStep}
         playMode={playMode}
         onToggleLoop={toggleLoopMode}
         audioElementRef={audioElementRef}
