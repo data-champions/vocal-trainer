@@ -169,21 +169,6 @@ main {
     width: 100%;
   }
 
-  .playback-actions {
-    flex-wrap: nowrap;
-    gap: 6px;
-  }
-
-  .playback-actions > div {
-    flex-wrap: nowrap;
-    gap: 6px;
-  }
-
-  .playback-actions .secondary-button {
-    flex: 1 1 0;
-    padding: 8px 10px;
-    font-size: 0.9rem;
-  }
 }
 
 h1 {
@@ -377,26 +362,32 @@ button:disabled {
   line-height: 1.4;
 }
 
-.playback-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+.note-select-row {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  align-items: stretch;
   gap: 8px;
-  justify-content: space-between;
-  margin: 12px 0 10px;
-}
-
-.playback-actions > div {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
   width: 100%;
 }
 
-.playback-actions .secondary-button {
+.note-select-row select {
+  width: 100%;
   min-width: 0;
-  flex: 1 1 30%;
-  padding: 10px 12px;
+}
+
+.note-step-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.note-step-button {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 6px;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .audio-loop-row {

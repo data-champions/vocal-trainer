@@ -6,9 +6,6 @@ type PlaybackControlsProps = {
   isPitchReady: boolean;
   noiseThreshold: number;
   onNoiseThresholdChange: (value: number) => void;
-  canStepDown: boolean;
-  canStepUp: boolean;
-  onHalfStep: (direction: 1 | -1) => void;
   playMode: 'single' | 'loop';
   onToggleLoop: () => void;
   audioElementRef: MutableRefObject<HTMLAudioElement | null>;
@@ -21,9 +18,6 @@ export function PlaybackControls({
   isPitchReady,
   noiseThreshold,
   onNoiseThresholdChange,
-  canStepDown,
-  canStepUp,
-  onHalfStep,
   playMode,
   onToggleLoop,
   audioElementRef,
@@ -58,37 +52,11 @@ export function PlaybackControls({
         </label>
       )}
 
-      <div className="playback-actions">
-        <div>
-          <button
-            className="secondary-button"
-            type="button"
-            aria-label="Abbassa nota di mezzo tono"
-            onClick={() => onHalfStep(-1)}
-            disabled={!canStepDown}
-            style={{ padding: '6px 1px', fontSize: '0.8rem' }}
-          >
-            ⬇️ Nota giù
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            aria-label="Alza nota di mezzo tono"
-            onClick={() => onHalfStep(1)}
-            disabled={!canStepUp}
-            style={{ padding: '6px 1px', fontSize: '0.8rem' }}
-          >
-            ⬆️ Nota su
-          </button>
-        </div>
-      </div>
-
       <div className="audio-loop-row">
         <audio
           key={audioUrl ?? 'audio-player'}
           ref={audioElementRef}
           controls
-          autoPlay
           loop={playMode === 'loop'}
           src={audioUrl ?? undefined}
           aria-label={

@@ -14,6 +14,9 @@ type SequenceControlsProps = {
   onDurationChange: (value: number) => void;
   noteCount: number;
   onNoteCountChange: (value: number) => void;
+  canStepDown: boolean;
+  canStepUp: boolean;
+  onHalfStep: (direction: 1 | -1) => void;
   maxNotes: number;
   sequenceDisplay: string;
   feedback: Feedback;
@@ -28,6 +31,9 @@ export function SequenceControls({
   onDurationChange,
   noteCount,
   onNoteCountChange,
+  canStepDown,
+  canStepUp,
+  onHalfStep,
   maxNotes,
   sequenceDisplay,
   feedback,
@@ -37,21 +43,45 @@ export function SequenceControls({
       <legend>Sequenza e controlli</legend>
       <label className="stacked-label" htmlFor="note-select">
         Nota iniziale
-        <select
-          id="note-select"
-          className={!selectedNote ? 'error-input' : undefined}
-          value={selectedNote}
-          onChange={(event) => onSelectNote(event.target.value as PianoKey)}
-        >
-          <option value="" disabled>
-            Seleziona la nota
-          </option>
-          {availableNotes.map((note) => (
-            <option key={note} value={note}>
-              {formatNoteByNotation(note, notationMode)}
+        <div className="note-select-row">
+          <select
+            id="note-select"
+            className={!selectedNote ? 'error-input' : undefined}
+            value={selectedNote}
+            onChange={(event) => onSelectNote(event.target.value as PianoKey)}
+          >
+            <option value="" disabled>
+              Seleziona la nota
             </option>
-          ))}
-        </select>
+            {availableNotes.map((note) => (
+              <option key={note} value={note}>
+                {formatNoteByNotation(note, notationMode)}
+              </option>
+            ))}
+          </select>
+          <div className="note-step-buttons" aria-label="Sposta nota">
+            <button
+              className="secondary-button note-step-button"
+              type="button"
+              aria-label="Alza nota di mezzo tono"
+              onClick={() => onHalfStep(1)}
+              disabled={!canStepUp}
+              title="Alza nota"
+            >
+              ▲
+            </button>
+            <button
+              className="secondary-button note-step-button"
+              type="button"
+              aria-label="Abbassa nota di mezzo tono"
+              onClick={() => onHalfStep(-1)}
+              disabled={!canStepDown}
+              title="Abbassa nota"
+            >
+              ▼
+            </button>
+          </div>
+        </div>
       </label>
 
       <label className="stacked-label" htmlFor="duration-slider">
@@ -89,11 +119,17 @@ export function SequenceControls({
       </label>
 
       {sequenceDisplay && (
-        <p className="note-display">Sequenza selezionata: {sequenceDisplay}</p>
+        <p className="note-display">
+          Sequenza riproduzione:<br></br>
+          {sequenceDisplay}
+        </p>
       )}
 
       {feedback && (
-        <div className={`feedback ${feedback.type}`} style={{ marginTop: '12px' }}>
+        <div
+          className={`feedback ${feedback.type}`}
+          style={{ marginTop: '12px' }}
+        >
           {feedback.message}
         </div>
       )}
