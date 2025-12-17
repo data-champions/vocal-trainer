@@ -5,6 +5,7 @@ type PitchStatusProps = {
   currentTargetNoteLabel: string;
   currentVoiceNoteLabel: string;
   pitchComparisonLabel: string | null;
+  isAudioPlaying: boolean;
   showPlot: boolean;
   onTogglePlot: () => void;
   pitchOutOfRange: boolean;
@@ -16,6 +17,7 @@ export function PitchStatus({
   currentTargetNoteLabel,
   currentVoiceNoteLabel,
   pitchComparisonLabel,
+  isAudioPlaying,
   showPlot,
   onTogglePlot,
   pitchOutOfRange,
@@ -48,19 +50,26 @@ export function PitchStatus({
         >
           <div>
             <p style={{ margin: '0 0 4px' }}>
-              Nota pianoforte: {currentTargetNoteLabel}
+              Nota pianoforte:{' '}
+              {isAudioPlaying && currentTargetNoteLabel
+                ? currentTargetNoteLabel
+                : '-'}
             </p>
-            <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p>
+            <p style={{ margin: 0 }}>
+              Nota voce: {isAudioPlaying ? currentVoiceNoteLabel : '-'}
+            </p>
+            {/* <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p> */}
           </div>
+
           <div
             style={{
               fontSize: '2.4rem',
               minWidth: '64px',
               textAlign: 'center',
-              opacity: pitchComparisonLabel ? 1 : 0.4,
+              opacity: isAudioPlaying && pitchComparisonLabel ? 1 : 0.4,
             }}
           >
-            {pitchComparisonLabel ?? '🎵'}
+            {(isAudioPlaying && pitchComparisonLabel) ?? '🎵'}
           </div>
         </div>
         <button
@@ -73,7 +82,7 @@ export function PitchStatus({
         </button>
       </div>
       <div className="pitch-warning-slot">
-        {pitchOutOfRange ? (
+        {isAudioPlaying && pitchOutOfRange ? (
           <button
             type="button"
             className="secondary-button flash-button"

@@ -1,11 +1,12 @@
 'use client';
 
-import type { MutableRefObject } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 
 type PlaybackControlsProps = {
   isPitchReady: boolean;
   noiseThreshold: number;
   onNoiseThresholdChange: (value: number) => void;
+  selectedNoteLabel: string;
   canStepDown: boolean;
   canStepUp: boolean;
   onHalfStep: (direction: 1 | -1) => void;
@@ -21,6 +22,7 @@ export function PlaybackControls({
   isPitchReady,
   noiseThreshold,
   onNoiseThresholdChange,
+  selectedNoteLabel,
   canStepDown,
   canStepUp,
   onHalfStep,
@@ -31,6 +33,37 @@ export function PlaybackControls({
   sequenceDescription,
   hasAudio,
 }: PlaybackControlsProps): JSX.Element {
+  const shouldAutoPlayRef = useRef(false);
+
+  useEffect(() => {
+    if (!shouldAutoPlayRef.current) {
+      return;
+    }
+    const audioEl = audioElementRef.current;
+    if (!audioEl || !audioUrl) {
+      return;
+    }
+    const playWhenReady = () => {
+      void audioEl.play();
+      shouldAutoPlayRef.current = false;
+    };
+    if (audioEl.readyState >= 2) {
+      playWhenReady();
+    } else {
+      audioEl.addEventListener('canplay', playWhenReady, { once: true });
+      return () => {
+        audioEl.removeEventListener('canplay', playWhenReady);
+      };
+    }
+  }, [audioUrl, audioElementRef]);
+
+  const handleLoopClick = () => {
+    onToggleLoop();
+    if (audioUrl) {
+      shouldAutoPlayRef.current = true;
+    }
+  };
+
   return (
     <fieldset style={{ marginTop: '16px' }}>
       <legend>Modalità e riproduzione</legend>
@@ -53,59 +86,68 @@ export function PlaybackControls({
             max={100}
             step={1}
             value={noiseThreshold}
-            onChange={(event) => onNoiseThresholdChange(Number(event.target.value))}
+            onChange={(event) =>
+              onNoiseThresholdChange(Number(event.target.value))
+            }
           />
         </label>
       )}
 
-      <div className="playback-actions">
-        <div>
+      <div className="base-note-row base-note-row--full">
+        <p style={{ margin: 0 }}>Nota base: {selectedNoteLabel || '-'}</p>
+        <div className="note-step-buttons" aria-label="Sposta nota base">
           <button
-            className="secondary-button"
+            className="secondary-button note-step-button"
             type="button"
-            aria-label="Abbassa nota di mezzo tono"
-            onClick={() => onHalfStep(-1)}
-            disabled={!canStepDown}
-            style={{ padding: '6px 1px', fontSize: '0.8rem' }}
-          >
-            ⬇️ Nota giù
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            aria-label="Alza nota di mezzo tono"
+            aria-label="Alza nota base di mezzo tono"
             onClick={() => onHalfStep(1)}
             disabled={!canStepUp}
-            style={{ padding: '6px 1px', fontSize: '0.8rem' }}
+            title="Alza nota"
           >
-            ⬆️ Nota su
+            ▲
           </button>
           <button
-            className={`secondary-button${playMode === 'loop' ? ' active' : ''}`}
+            className="secondary-button note-step-button"
             type="button"
-            aria-pressed={playMode === 'loop'}
-            onClick={onToggleLoop}
-            style={{ padding: '6px 1px', fontSize: '0.8rem' }}
+            aria-label="Abbassa nota base di mezzo tono"
+            onClick={() => onHalfStep(-1)}
+            disabled={!canStepDown}
+            title="Abbassa nota"
           >
-            🔁 {playMode === 'loop' ? 'Ripeti attivo' : 'Ripeti'}
+            ▼
           </button>
         </div>
       </div>
 
-      <audio
-        key={audioUrl ?? 'audio-player'}
-        ref={audioElementRef}
-        controls
-        autoPlay
-        loop={playMode === 'loop'}
-        src={audioUrl ?? undefined}
-        aria-label={
-          sequenceDescription
-            ? `Sequenza: ${sequenceDescription}`
-            : 'Audio generato'
-        }
-        style={{ width: '100%' }}
-      />
+      <div className="audio-loop-row">
+        <audio
+          key={audioUrl ?? 'audio-player'}
+          ref={audioElementRef}
+          controls
+          loop={playMode === 'loop'}
+          src={audioUrl ?? undefined}
+          aria-label={
+            sequenceDescription
+              ? `Sequenza: ${sequenceDescription}`
+              : 'Audio generato'
+          }
+          className="audio-loop-player"
+        />
+        <button
+          className={`secondary-button loop-button${
+            playMode === 'loop' ? ' active' : ''
+          }`}
+          type="button"
+          aria-pressed={playMode === 'loop'}
+          onClick={handleLoopClick}
+          aria-label={
+            playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'
+          }
+          title={playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'}
+        >
+          🔁
+        </button>
+      </div>
       <p
         style={{
           margin: '8px 0 0',
@@ -122,3 +164,4 @@ export function PlaybackControls({
     </fieldset>
   );
 }
+//

@@ -169,21 +169,6 @@ main {
     width: 100%;
   }
 
-  .playback-actions {
-    flex-wrap: nowrap;
-    gap: 6px;
-  }
-
-  .playback-actions > div {
-    flex-wrap: nowrap;
-    gap: 6px;
-  }
-
-  .playback-actions .secondary-button {
-    flex: 1 1 0;
-    padding: 8px 10px;
-    font-size: 0.9rem;
-  }
 }
 
 h1 {
@@ -377,26 +362,67 @@ button:disabled {
   line-height: 1.4;
 }
 
-.playback-actions {
+.note-step-buttons {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  justify-content: space-between;
-  margin: 12px 0 10px;
-}
-
-.playback-actions > div {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
   width: 100%;
 }
 
-.playback-actions .secondary-button {
+.note-step-button {
   min-width: 0;
-  flex: 1 1 30%;
-  padding: 10px 12px;
+  width: 100%;
+  padding: 6px 6px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.base-note-row {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.base-note-row p {
+  margin: 0;
+}
+
+.base-note-row--full {
+  width: 100%;
+}
+
+.audio-loop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.audio-loop-player {
+  width: 100%;
+  min-width: 0;
+  display: block;
+  align-self: center;
+}
+
+.loop-button {
+  padding: 0;
+  min-width: 48px;
+  min-height: 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  font-size: 1.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  align-self: center;
+  vertical-align: middle;
+  position: relative;
+  top: 8px;
 }
 
 .note-display {

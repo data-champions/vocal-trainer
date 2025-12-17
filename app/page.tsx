@@ -31,15 +31,17 @@ import { PitchChart } from './components/PitchChart';
 import { LoginButtons } from './components/LoginButtons';
 
 export default function HomePage(): JSX.Element {
-  const [notationMode, setNotationMode] =
-    useState<NotationMode>(DEFAULT_NOTATION_MODE);
+  const [notationMode, setNotationMode] = useState<NotationMode>(
+    DEFAULT_NOTATION_MODE
+  );
   const [vocalRange, setVocalRange] = useState<VocalRangeKey>('tenor');
   const [selectedNote, setSelectedNote] = useState<PianoKey | ''>('');
   const [duration, setDuration] = useState(1);
   const [noteCount, setNoteCount] = useState(3);
   const [playMode, setPlayMode] = useState<'single' | 'loop'>('single');
   const [noiseThreshold, setNoiseThreshold] = useState(30);
-  const [showPlot, setShowPlot] = useState(true);
+  const [showPlot, setShowPlot] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [currentTargetFrequency, setCurrentTargetFrequency] = useState<
     number | null
   >(null);
@@ -70,6 +72,13 @@ export default function HomePage(): JSX.Element {
     () => PIANO_KEYS.filter((note) => allowedNoteSet.has(note)),
     [allowedNoteSet]
   );
+  useEffect(() => {
+    if (availableNotes.length === 0) {
+      return;
+    }
+    const middleIndex = Math.floor(availableNotes.length / 2);
+    setSelectedNote(availableNotes[middleIndex]);
+  }, [availableNotes]);
   const resetTargets = useCallback(() => {
     setCurrentTargetFrequency(null);
     setCurrentTargetNote('');
@@ -104,6 +113,26 @@ export default function HomePage(): JSX.Element {
     rangeBounds,
     onTargetReset: resetTargets,
   });
+
+  useEffect(() => {
+    const audioEl = audioElementRef.current;
+    if (!audioEl) {
+      setIsAudioPlaying(false);
+      return;
+    }
+    const handlePlay = () => setIsAudioPlaying(true);
+    const handlePause = () => setIsAudioPlaying(false);
+    const handleEnded = () => setIsAudioPlaying(false);
+    audioEl.addEventListener('play', handlePlay);
+    audioEl.addEventListener('pause', handlePause);
+    audioEl.addEventListener('ended', handleEnded);
+    setIsAudioPlaying(!audioEl.paused);
+    return () => {
+      audioEl.removeEventListener('play', handlePlay);
+      audioEl.removeEventListener('pause', handlePause);
+      audioEl.removeEventListener('ended', handleEnded);
+    };
+  }, [audioUrl]);
 
   useEffect(() => {
     currentTargetNoteRef.current = currentTargetNote;
@@ -315,7 +344,6 @@ export default function HomePage(): JSX.Element {
     }
   }, []);
 
-
   useEventListener(
     'keydown',
     (event) => {
@@ -385,6 +413,9 @@ export default function HomePage(): JSX.Element {
         isPitchReady={isPitchReady}
         noiseThreshold={noiseThreshold}
         onNoiseThresholdChange={setNoiseThreshold}
+        selectedNoteLabel={
+          selectedNote ? formatNoteByNotation(selectedNote, notationMode) : ''
+        }
         canStepDown={canStepDown}
         canStepUp={canStepUp}
         onHalfStep={handleHalfStep}
@@ -401,6 +432,7 @@ export default function HomePage(): JSX.Element {
         currentTargetNoteLabel={currentTargetNoteLabel}
         currentVoiceNoteLabel={currentVoiceNoteLabel}
         pitchComparisonLabel={pitchComparisonLabel}
+        isAudioPlaying={isAudioPlaying}
         showPlot={showPlot}
         onTogglePlot={() => setShowPlot((prev) => !prev)}
         pitchOutOfRange={pitchOutOfRange}

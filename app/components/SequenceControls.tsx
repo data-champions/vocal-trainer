@@ -89,11 +89,17 @@ export function SequenceControls({
       </label>
 
       {sequenceDisplay && (
-        <p className="note-display">Sequenza selezionata: {sequenceDisplay}</p>
+        <p className="note-display">
+          Sequenza riproduzione:<br></br>
+          {sequenceDisplay}
+        </p>
       )}
 
       {feedback && (
-        <div className={`feedback ${feedback.type}`} style={{ marginTop: '12px' }}>
+        <div
+          className={`feedback ${feedback.type}`}
+          style={{ marginTop: '12px' }}
+        >
           {feedback.message}
         </div>
       )}
