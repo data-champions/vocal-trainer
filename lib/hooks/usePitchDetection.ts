@@ -6,7 +6,7 @@ import type { PitchSample } from '../types';
 import { useLatestRef, useRafLoop } from './common';
 
 type PitchStatus = 'idle' | 'starting' | 'ready' | 'error';
-type AnalyserBuffer = Float32Array;
+type AnalyserBuffer = Float32Array<ArrayBuffer>;
 
 type UsePitchDetectionParams = {
   noiseThreshold: number;
@@ -105,7 +105,9 @@ export function usePitchDetection({
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
         analyserRef.current = analyser;
-        analyserBufferRef.current = new Float32Array(analyser.fftSize);
+        analyserBufferRef.current = new Float32Array(
+          analyser.fftSize
+        ) as AnalyserBuffer;
         pitchDetectorRef.current = PitchDetector.forFloat32Array(
           analyser.fftSize
         );

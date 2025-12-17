@@ -1,6 +1,6 @@
 'use client';
 
-import type { MutableRefObject } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 
 type PlaybackControlsProps = {
   isPitchReady: boolean;
@@ -33,6 +33,37 @@ export function PlaybackControls({
   sequenceDescription,
   hasAudio,
 }: PlaybackControlsProps): JSX.Element {
+  const shouldAutoPlayRef = useRef(false);
+
+  useEffect(() => {
+    if (!shouldAutoPlayRef.current) {
+      return;
+    }
+    const audioEl = audioElementRef.current;
+    if (!audioEl || !audioUrl) {
+      return;
+    }
+    const playWhenReady = () => {
+      void audioEl.play();
+      shouldAutoPlayRef.current = false;
+    };
+    if (audioEl.readyState >= 2) {
+      playWhenReady();
+    } else {
+      audioEl.addEventListener('canplay', playWhenReady, { once: true });
+      return () => {
+        audioEl.removeEventListener('canplay', playWhenReady);
+      };
+    }
+  }, [audioUrl, audioElementRef]);
+
+  const handleLoopClick = () => {
+    onToggleLoop();
+    if (audioUrl) {
+      shouldAutoPlayRef.current = true;
+    }
+  };
+
   return (
     <fieldset style={{ marginTop: '16px' }}>
       <legend>Modalità e riproduzione</legend>
@@ -108,7 +139,7 @@ export function PlaybackControls({
           }`}
           type="button"
           aria-pressed={playMode === 'loop'}
-          onClick={onToggleLoop}
+          onClick={handleLoopClick}
           aria-label={
             playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'
           }

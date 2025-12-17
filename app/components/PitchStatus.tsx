@@ -55,7 +55,10 @@ export function PitchStatus({
                 ? currentTargetNoteLabel
                 : '-'}
             </p>
-            <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p>
+            <p style={{ margin: 0 }}>
+              Nota voce: {isAudioPlaying ? currentVoiceNoteLabel : '-'}
+            </p>
+            {/* <p style={{ margin: 0 }}>Nota voce: {currentVoiceNoteLabel}</p> */}
           </div>
 
           <div
@@ -79,7 +82,7 @@ export function PitchStatus({
         </button>
       </div>
       <div className="pitch-warning-slot">
-        {pitchOutOfRange ? (
+        {isAudioPlaying && pitchOutOfRange ? (
           <button
             type="button"
             className="secondary-button flash-button"
