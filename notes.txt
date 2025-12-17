@@ -1,0 +1,30 @@
+          <button
+            className="secondary-button"
+            type="button"
+            aria-label="Abbassa nota di mezzo tono"
+            onClick={() => onHalfStep(-1)}
+            disabled={!canStepDown}
+            style={{ padding: '6px 1px', fontSize: '0.8rem' }}
+          >
+            ⬇️ Nota giù
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            aria-label="Alza nota di mezzo tono"
+            onClick={() => onHalfStep(1)}
+            disabled={!canStepUp}
+            style={{ padding: '6px 1px', fontSize: '0.8rem' }}
+          >
+            ⬆️ Nota su
+          </button>
+
+
+I would like to place those 2 buttons (currently in PlaybackControls.tsx) next to the select "seleziona la nota" in SequenceControls.
+
+I would like <select> and the 2 buttons to be inline. The 2 buttons should be stacked on top of each other, up and down. The 2 stacked buttons should occupy about 25% of the width and the select the rest.
+The 2 buttons should have only arrow and no text (so to minimise their width).
+
+The buttons should keep their functionality (move a note up or down). When the note is moved up or down the <select> should display the updated note (to give immediate feedback). 
+
+Can you implement that?
