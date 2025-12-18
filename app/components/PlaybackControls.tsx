@@ -1,11 +1,19 @@
 'use client';
 
 import { useEffect, useRef, type MutableRefObject } from 'react';
+import {
+  type DenoiserType,
+  type NoiseProcessorStatus,
+} from '../../lib/hooks/useNoiseProcessor';
 
 type PlaybackControlsProps = {
   isPitchReady: boolean;
   noiseThreshold: number;
   onNoiseThresholdChange: (value: number) => void;
+  denoiserType: DenoiserType;
+  onDenoiserChange: (mode: DenoiserType) => void;
+  denoiserStatus: NoiseProcessorStatus;
+  denoiserError?: string | null;
   selectedNoteLabel: string;
   canStepDown: boolean;
   canStepUp: boolean;
@@ -22,6 +30,10 @@ export function PlaybackControls({
   isPitchReady,
   noiseThreshold,
   onNoiseThresholdChange,
+  denoiserType,
+  onDenoiserChange,
+  denoiserStatus,
+  denoiserError,
   selectedNoteLabel,
   canStepDown,
   canStepUp,
@@ -64,10 +76,18 @@ export function PlaybackControls({
     }
   };
 
+  const denoiserOptions: Array<{ value: DenoiserType; label: string }> = [
+    { value: 'none', label: 'Nessuno' },
+    { value: 'dsp', label: 'DSP veloce' },
+    { value: 'ml', label: 'ML (RNNoise)' },
+  ];
+  const showNoiseControls =
+    isPitchReady || denoiserStatus === 'loading' || denoiserStatus === 'error';
+
   return (
     <fieldset style={{ marginTop: '16px' }}>
       <legend>Modalità e riproduzione</legend>
-      {!isPitchReady ? (
+      {!showNoiseControls ? (
         <div className="player-card" style={{ marginTop: '8px' }}>
           <p style={{ margin: 0, color: '#ff4d4f', fontWeight: 800 }}>
             autorizzare il microfono per usare le funzionalita&apos; di
@@ -75,22 +95,95 @@ export function PlaybackControls({
           </p>
         </div>
       ) : (
-        <label
+        <div
           className="noise-filter-control"
-          style={{ width: '100%', marginTop: '8px' }}
+          style={{ width: '100%', marginTop: '8px', display: 'grid', gap: '8px' }}
         >
-          <span>Filtro rumore (soglia dB): {noiseThreshold.toFixed(0)}</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={noiseThreshold}
-            onChange={(event) =>
-              onNoiseThresholdChange(Number(event.target.value))
-            }
-          />
-        </label>
+          <label className="noise-filter-control" style={{ width: '100%', margin: 0 }}>
+            <span>Filtro rumore (soglia dB): {noiseThreshold.toFixed(0)}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={noiseThreshold}
+              onChange={(event) =>
+                onNoiseThresholdChange(Number(event.target.value))
+              }
+            />
+          </label>
+          <div
+            className="noise-filter-control"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(160px, 1.1fr) 2fr',
+              alignItems: 'center',
+              gap: '12px',
+              margin: 0,
+            }}
+          >
+            <span>Denoiser:</span>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {denoiserOptions.map((option) => {
+                const isActive = denoiserType === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 10px',
+                      borderRadius: '10px',
+                      border: `1px solid ${
+                        isActive ? 'rgba(34, 211, 238, 0.8)' : 'rgba(148, 163, 184, 0.4)'
+                      }`,
+                      background: isActive
+                        ? 'rgba(34, 211, 238, 0.15)'
+                        : 'rgba(148, 163, 184, 0.12)',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="denoiser"
+                      value={option.value}
+                      checked={isActive}
+                      onChange={() => onDenoiserChange(option.value)}
+                      style={{ margin: 0 }}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          <div
+            style={{
+              minHeight: '18px',
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'center',
+            }}
+          >
+            {denoiserStatus === 'loading' ? (
+              <span style={{ fontSize: '0.85rem', color: '#cbd5f5' }}>
+                Caricamento denoiser ML...
+              </span>
+            ) : null}
+            {denoiserStatus === 'error' && !denoiserError ? (
+              <span style={{ fontSize: '0.85rem', color: '#fca5a5' }}>
+                Errore nel denoiser, prova un profilo diverso.
+              </span>
+            ) : null}
+            {denoiserError ? (
+              <span style={{ fontSize: '0.85rem', color: '#fca5a5' }}>
+                RNNoise non disponibile (pass-through): {denoiserError}
+              </span>
+            ) : null}
+          </div>
+        </div>
       )}
 
       <div className="base-note-row base-note-row--full">
@@ -164,4 +257,3 @@ export function PlaybackControls({
     </fieldset>
   );
 }
-//
