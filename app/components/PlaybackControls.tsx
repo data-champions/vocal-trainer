@@ -10,6 +10,7 @@ type PlaybackControlsProps = {
   canStepDown: boolean;
   canStepUp: boolean;
   onHalfStep: (direction: 1 | -1) => void;
+  isAudioPlaying: boolean;
   playMode: 'single' | 'loop';
   onToggleLoop: () => void;
   audioElementRef: MutableRefObject<HTMLAudioElement | null>;
@@ -26,6 +27,7 @@ export function PlaybackControls({
   canStepDown,
   canStepUp,
   onHalfStep,
+  isAudioPlaying,
   playMode,
   onToggleLoop,
   audioElementRef,
@@ -34,6 +36,22 @@ export function PlaybackControls({
   hasAudio,
 }: PlaybackControlsProps): JSX.Element {
   const shouldAutoPlayRef = useRef(false);
+  const wasPlayingRef = useRef(false);
+  const lastAudioUrlRef = useRef<string | null>(audioUrl);
+
+  useEffect(() => {
+    wasPlayingRef.current = isAudioPlaying;
+  }, [isAudioPlaying]);
+
+  useEffect(() => {
+    if (!audioUrl || audioUrl === lastAudioUrlRef.current) {
+      return;
+    }
+    if (playMode === 'loop' && wasPlayingRef.current) {
+      shouldAutoPlayRef.current = true;
+    }
+    lastAudioUrlRef.current = audioUrl;
+  }, [audioUrl, playMode]);
 
   useEffect(() => {
     if (!shouldAutoPlayRef.current) {

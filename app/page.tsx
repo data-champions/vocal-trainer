@@ -419,6 +419,7 @@ export default function HomePage(): JSX.Element {
         canStepDown={canStepDown}
         canStepUp={canStepUp}
         onHalfStep={handleHalfStep}
+        isAudioPlaying={isAudioPlaying}
         playMode={playMode}
         onToggleLoop={toggleLoopMode}
         audioElementRef={audioElementRef}
