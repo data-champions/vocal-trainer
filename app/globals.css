@@ -425,6 +425,13 @@ button:disabled {
   top: 8px;
 }
 
+.loop-button.active {
+  background: linear-gradient(135deg, #22d3ee, #38bdf8);
+  color: #0b0c10;
+  border: 1px solid rgba(34, 211, 238, 0.8);
+  transform: translateY(-1px);
+}
+
 .note-display {
   margin: 12px 0 0;
   font-weight: 500;
