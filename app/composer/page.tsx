@@ -6,6 +6,7 @@ import { LoginButtons } from '../components/LoginButtons';
 import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
 import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
+import { VexComposer } from '../components/VexComposer';
 
 export default function ComposerPage(): JSX.Element {
   const { data: session, status } = useSession();
@@ -51,7 +52,13 @@ export default function ComposerPage(): JSX.Element {
       <fieldset>
         <legend>Area insegnanti</legend>
         {isTeacher ? (
-          <p>Qui potrai creare esercizi personalizzati per i tuoi studenti (prossimamente).</p>
+          <>
+            <p>
+              Trascina durate diverse sulla partitura o clicca sul pentagramma per
+              aggiungere note con l&apos;altezza selezionata.
+            </p>
+            <VexComposer />
+          </>
         ) : isTeacherAllowed ? (
           <p>Seleziona il ruolo &quot;Insegnante&quot; nella pagina Profilo per accedere al composer.</p>
         ) : (
