@@ -106,9 +106,26 @@ export function usePitchDetection({
         }
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            noiseSuppression: true,
-            echoCancellation: true,
-            autoGainControl: false,
+            /*       
+            1. noiseSuppression
+            What it does: Browser removes background noise before audio reaches you.
+            Good for: Calls and simple voice.
+            Bad for: Music, high-quality audio, ML (too aggressive).
+            Why set to false: It can distort quiet voices.
+            2. echoCancellation
+            What it does: Removes echo by subtracting speaker output from mic input.
+            Good for: Video calls, conferencing.
+            Bad for: Music or precise audio work.
+            Why set to false: It may remove real audio if it matches speaker frequencies.
+            3. autoGainControl
+            What it does: Adjusts mic volume automatically.
+            Good for: Soft speakers who need louder input.
+            Bad for: Audio processing, ML models (volume jumps).
+            Why set to false: Keeps volume stable and predictable.
+            */
+            noiseSuppression: false,
+            echoCancellation: false,
+            autoGainControl: true,
           },
         });
         micStreamRef.current = stream;
