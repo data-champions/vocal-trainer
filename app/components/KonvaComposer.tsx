@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from 'react-konva';
+import type Konva from 'konva';
 
 type NoteDuration = '8' | 'q' | 'h' | 'w';
 
@@ -40,7 +41,7 @@ const durationToBeats = (duration: NoteDuration) => {
 
 export function KonvaComposer(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const stageRef = useRef<any>(null);
+  const stageRef = useRef<Konva.Stage | null>(null);
   const [stageSize, setStageSize] = useState({ width: 720, height: 260 });
   const [selectedDuration, setSelectedDuration] =
     useState<NoteDuration>('q');
@@ -134,7 +135,7 @@ export function KonvaComposer(): JSX.Element {
     setHoveredPitch(null);
   };
 
-  const handleClick = (event: any) => {
+  const handleClick = () => {
     const stage = stageRef.current;
     if (!stage) {
       return;
@@ -176,8 +177,8 @@ export function KonvaComposer(): JSX.Element {
     setEditingNote(null);
   };
 
-  const openEditorAtEvent = (id: string, evt: any) => {
-    evt.evt?.preventDefault?.();
+  const openEditorAtEvent = (id: string, evt: Konva.KonvaEventObject<MouseEvent>) => {
+    evt.evt.preventDefault();
     const containerRect = containerRef.current?.getBoundingClientRect();
     const absPos = evt.target.getAbsolutePosition();
     setEditingNote({
@@ -276,7 +277,7 @@ export function KonvaComposer(): JSX.Element {
           height={stageSize.height}
           onClick={handleClick}
           onContextMenu={(evt) => {
-            evt.evt?.preventDefault?.();
+            evt.evt.preventDefault();
           }}
         >
           <Layer>
