@@ -47,6 +47,11 @@ export function KonvaComposer(): JSX.Element {
   const [selectedPitch, setSelectedPitch] = useState(PITCHES[0]);
   const [notes, setNotes] = useState<ComposerNote[]>([]);
   const [hoveredPitch, setHoveredPitch] = useState<string | null>(null);
+  const [editingNote, setEditingNote] = useState<{
+    id: string;
+    left: number;
+    top: number;
+  } | null>(null);
 
   const padding = 24;
   const staffTop = 60;
@@ -139,10 +144,12 @@ export function KonvaComposer(): JSX.Element {
       return;
     }
     addNoteAt(pointer.x, pointer.y, selectedDuration);
+    setEditingNote(null);
   };
 
   const handleDragStart = (duration: NoteDuration) => {
     setSelectedDuration(duration);
+    setEditingNote(null);
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
@@ -166,6 +173,18 @@ export function KonvaComposer(): JSX.Element {
           : note
       )
     );
+    setEditingNote(null);
+  };
+
+  const openEditorAtEvent = (id: string, evt: any) => {
+    evt.evt?.preventDefault?.();
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    const absPos = evt.target.getAbsolutePosition();
+    setEditingNote({
+      id,
+      left: containerRect ? absPos.x - (containerRect.left ?? 0) : absPos.x,
+      top: containerRect ? absPos.y - (containerRect.top ?? 0) : absPos.y,
+    });
   };
 
   const pitchBands = useMemo(() => {
@@ -256,6 +275,9 @@ export function KonvaComposer(): JSX.Element {
           width={stageSize.width}
           height={stageSize.height}
           onClick={handleClick}
+          onContextMenu={(evt) => {
+            evt.evt?.preventDefault?.();
+          }}
         >
           <Layer>
             {pitchBands.map((band) => (
@@ -319,6 +341,8 @@ export function KonvaComposer(): JSX.Element {
                       evt.target.y()
                     )
                   }
+                  onClick={(evt) => openEditorAtEvent(note.id, evt)}
+                  onContextMenu={(evt) => openEditorAtEvent(note.id, evt)}
                 >
                   <Circle
                     radius={noteHeadRadius}
@@ -343,6 +367,59 @@ export function KonvaComposer(): JSX.Element {
             })}
           </Layer>
         </Stage>
+        {editingNote ? (
+          <div
+            className="note-editor"
+            style={{
+              left: `${editingNote.left}px`,
+              top: `${editingNote.top}px`,
+            }}
+          >
+            <label className="note-editor-row">
+              <span>Durata</span>
+              <select
+                value={
+                  notes.find((n) => n.id === editingNote.id)?.duration ?? 'q'
+                }
+                onChange={(event) => {
+                  const next = event.target.value as NoteDuration;
+                  setNotes((prev) =>
+                    prev.map((note) =>
+                      note.id === editingNote.id
+                        ? { ...note, duration: next }
+                        : note
+                    )
+                  );
+                }}
+              >
+                {NOTE_DEFS.map((def) => (
+                  <option key={def.key} value={def.code}>
+                    {def.symbol} {def.fraction}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                setNotes((prev) =>
+                  prev.filter((note) => note.id !== editingNote.id)
+                );
+                setEditingNote(null);
+              }}
+            >
+              Elimina nota
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setEditingNote(null)}
+            >
+              Chiudi
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
