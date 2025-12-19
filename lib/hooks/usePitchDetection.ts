@@ -83,8 +83,8 @@ export function usePitchDetection({
         }
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            noiseSuppression: true,
-            echoCancellation: true,
+            noiseSuppression: false,
+            echoCancellation: false,
             autoGainControl: false,
           },
         });
