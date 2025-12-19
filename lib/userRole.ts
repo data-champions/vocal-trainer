@@ -3,6 +3,7 @@ import type { UserRole } from './hooks/useUserRole';
 export const TEACHER_WHITELIST = new Set([
   'fortini.david@gmail.com',
   'infodatachampions@gmail.com',
+  'mattito73@gmail.com'
 ]);
 
 export function isTeacherWhitelisted(email?: string | null) {
@@ -17,7 +18,5 @@ export function getDefaultRoleForEmail(email?: string | null): UserRole {
 }
 
 export function getAllowedRoles(email?: string | null): UserRole[] {
-  return isTeacherWhitelisted(email)
-    ? ['student', 'teacher']
-    : ['student'];
+  return isTeacherWhitelisted(email) ? ['teacher'] : ['student'];
 }
