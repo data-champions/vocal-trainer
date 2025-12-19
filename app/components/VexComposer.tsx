@@ -98,6 +98,7 @@ export function VexComposer(): JSX.Element {
                 className={`note-chip${selectedDuration === option.code ? ' is-active' : ''}`}
                 draggable
                 onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = 'copy';
                   event.dataTransfer.setData('duration', option.code);
                   setSelectedDuration(option.code);
                 }}
@@ -146,7 +147,10 @@ export function VexComposer(): JSX.Element {
 
       <div
         className="staff-surface"
-        onDragOver={(event) => event.preventDefault()}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }}
         onDrop={handleDrop}
         onClick={() => addNote(selectedDuration)}
         aria-label="Pentagramma"
