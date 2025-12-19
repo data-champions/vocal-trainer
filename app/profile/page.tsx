@@ -5,10 +5,22 @@ import { useSession } from 'next-auth/react';
 import { LoginButtons } from '../components/LoginButtons';
 import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
+import {
+  TEACHER_WHITELIST,
+  getAllowedRoles,
+  getDefaultRoleForEmail,
+} from '../../lib/userRole';
 
 export default function ProfilePage(): JSX.Element {
   const { data: session, status } = useSession();
-  const { role, setRole } = useUserRole();
+  const email = session?.user?.email ?? null;
+  const allowedRoles = useMemo(() => getAllowedRoles(email), [email]);
+  const defaultRole = useMemo(() => getDefaultRoleForEmail(email), [email]);
+  const isTeacherAllowed = useMemo(
+    () => allowedRoles.includes('teacher'),
+    [allowedRoles]
+  );
+  const { role, setRole } = useUserRole(defaultRole, allowedRoles);
 
   const displayName = useMemo(() => {
     return session?.user?.name || session?.user?.email || 'Account';
@@ -18,7 +30,7 @@ export default function ProfilePage(): JSX.Element {
     return (
       <main>
         <div className="page-header">
-          <h1>Profile</h1>
+          <h1>Profilo</h1>
         </div>
         <p>Caricamento...</p>
       </main>
@@ -29,7 +41,7 @@ export default function ProfilePage(): JSX.Element {
     return (
       <main>
         <div className="page-header">
-          <h1>Profile</h1>
+          <h1>Profilo</h1>
           <LoginButtons />
         </div>
         <p>Accedi per scegliere se usare l&apos;app come studente o insegnante.</p>
@@ -40,7 +52,7 @@ export default function ProfilePage(): JSX.Element {
   return (
     <main>
       <div className="page-header">
-        <h1>Profile</h1>
+        <h1>Profilo</h1>
         <LoginButtons />
       </div>
 
@@ -63,7 +75,7 @@ export default function ProfilePage(): JSX.Element {
                 <p className="role-description">
                   Allenati sugli esercizi base o svolgi gli esercizi assegnati dal tuo insegnante.
                 </p>
-                <p className="role-tabs">Tab disponibili: Profile, Teacher exercises, Basic exercises</p>
+                <p className="role-tabs">Tab disponibili: Profilo, Esercizi insegnante, Esercizi base</p>
               </div>
             </label>
 
@@ -74,13 +86,19 @@ export default function ProfilePage(): JSX.Element {
                 value="teacher"
                 checked={role === 'teacher'}
                 onChange={() => setRole('teacher')}
+                disabled={!isTeacherAllowed}
               />
               <div className="role-card__content">
                 <p className="role-label">Insegnante</p>
                 <p className="role-description">
                   Componi esercizi personalizzati e gestisci gli studenti, oltre alla sezione degli esercizi base.
                 </p>
-                <p className="role-tabs">Tab disponibili: Profile, Composer, Students, Basic exercises</p>
+                <p className="role-tabs">Tab disponibili: Profilo, Compositore, Studenti, Esercizi base</p>
+                {!isTeacherAllowed ? (
+                  <p className="role-guard">
+                    Disponibile solo per email whitelist ({Array.from(TEACHER_WHITELIST).join(', ')}).
+                  </p>
+                ) : null}
               </div>
             </label>
           </div>

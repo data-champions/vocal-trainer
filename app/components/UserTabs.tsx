@@ -2,8 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useUserRole, type UserRole } from '../../lib/hooks/useUserRole';
+import {
+  getAllowedRoles,
+  getDefaultRoleForEmail,
+} from '../../lib/userRole';
 
 type TabConfig = {
   label: string;
@@ -11,16 +16,16 @@ type TabConfig = {
 };
 
 const teacherTabs: TabConfig[] = [
-  { label: 'Profile', href: '/profile' },
-  { label: 'Composer', href: '/composer' },
-  { label: 'Students', href: '/students' },
-  { label: 'Basic exercises', href: '/' },
+  { label: 'Profilo', href: '/profile' },
+  { label: 'Compositore', href: '/composer' },
+  { label: 'Studenti', href: '/students' },
+  { label: 'Esercizi base', href: '/' },
 ];
 
 const studentTabs: TabConfig[] = [
-  { label: 'Profile', href: '/profile' },
-  { label: 'Teacher exercises', href: '/teacher-exercises' },
-  { label: 'Basic exercises', href: '/' },
+  { label: 'Profilo', href: '/profile' },
+  { label: 'Esercizi insegnante', href: '/teacher-exercises' },
+  { label: 'Esercizi base', href: '/' },
 ];
 
 function resolveTabs(role: UserRole | null) {
@@ -31,8 +36,11 @@ function resolveTabs(role: UserRole | null) {
 }
 
 export function UserTabs(): JSX.Element | null {
-  const { status } = useSession();
-  const { role } = useUserRole();
+  const { data: session, status } = useSession();
+  const email = session?.user?.email ?? null;
+  const allowedRoles = useMemo(() => getAllowedRoles(email), [email]);
+  const defaultRole = useMemo(() => getDefaultRoleForEmail(email), [email]);
+  const { role } = useUserRole(defaultRole, allowedRoles);
   const pathname = usePathname();
 
   if (status !== 'authenticated') {

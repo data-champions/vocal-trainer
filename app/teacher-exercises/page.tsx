@@ -1,19 +1,24 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { LoginButtons } from '../components/LoginButtons';
 import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
+import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
 
 export default function TeacherExercisesPage(): JSX.Element {
-  const { status } = useSession();
-  const { role } = useUserRole();
+  const { data: session, status } = useSession();
+  const email = session?.user?.email ?? null;
+  const allowedRoles = useMemo(() => getAllowedRoles(email), [email]);
+  const defaultRole = useMemo(() => getDefaultRoleForEmail(email), [email]);
+  const { role } = useUserRole(defaultRole, allowedRoles);
 
   if (status === 'loading') {
     return (
       <main>
         <div className="page-header">
-          <h1>Teacher exercises</h1>
+          <h1>Esercizi insegnante</h1>
         </div>
         <p>Caricamento...</p>
       </main>
@@ -24,7 +29,7 @@ export default function TeacherExercisesPage(): JSX.Element {
     return (
       <main>
         <div className="page-header">
-          <h1>Teacher exercises</h1>
+          <h1>Esercizi insegnante</h1>
           <LoginButtons />
         </div>
         <p>Accedi per vedere gli esercizi assegnati dal tuo insegnante.</p>
@@ -37,7 +42,7 @@ export default function TeacherExercisesPage(): JSX.Element {
   return (
     <main>
       <div className="page-header">
-        <h1>Teacher exercises</h1>
+        <h1>Esercizi insegnante</h1>
         <LoginButtons />
       </div>
 
@@ -48,7 +53,7 @@ export default function TeacherExercisesPage(): JSX.Element {
         {isStudent ? (
           <p>Qui appariranno gli esercizi condivisi dal tuo insegnante (prossimamente).</p>
         ) : (
-          <p>Passa al ruolo &quot;Studente&quot; nella pagina Profile per vedere gli esercizi assegnati.</p>
+          <p>Passa al ruolo &quot;Studente&quot; nella pagina Profilo per vedere gli esercizi assegnati.</p>
         )}
       </fieldset>
     </main>

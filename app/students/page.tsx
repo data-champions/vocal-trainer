@@ -1,19 +1,26 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { LoginButtons } from '../components/LoginButtons';
 import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
+import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
 
 export default function StudentsPage(): JSX.Element {
-  const { status } = useSession();
-  const { role } = useUserRole('teacher');
+  const { data: session, status } = useSession();
+  const email = session?.user?.email ?? null;
+  const allowedRoles = useMemo(() => getAllowedRoles(email), [email]);
+  const defaultRole = useMemo(() => getDefaultRoleForEmail(email), [email]);
+  const { role } = useUserRole(defaultRole, allowedRoles);
+  const isTeacherAllowed = allowedRoles.includes('teacher');
+  const isTeacher = role === 'teacher';
 
   if (status === 'loading') {
     return (
       <main>
         <div className="page-header">
-          <h1>Students</h1>
+          <h1>Studenti</h1>
         </div>
         <p>Caricamento...</p>
       </main>
@@ -24,7 +31,7 @@ export default function StudentsPage(): JSX.Element {
     return (
       <main>
         <div className="page-header">
-          <h1>Students</h1>
+          <h1>Studenti</h1>
           <LoginButtons />
         </div>
         <p>Accedi come insegnante per gestire gli studenti.</p>
@@ -32,12 +39,10 @@ export default function StudentsPage(): JSX.Element {
     );
   }
 
-  const isTeacher = role === 'teacher';
-
   return (
     <main>
       <div className="page-header">
-        <h1>Students</h1>
+        <h1>Studenti</h1>
         <LoginButtons />
       </div>
 
@@ -47,8 +52,10 @@ export default function StudentsPage(): JSX.Element {
         <legend>Gestione studenti</legend>
         {isTeacher ? (
           <p>Panoramica studenti e assegnazioni arriveranno qui (prossimamente).</p>
+        ) : isTeacherAllowed ? (
+          <p>Passa al ruolo &quot;Insegnante&quot; dalla pagina Profilo per vedere gli studenti.</p>
         ) : (
-          <p>Passa al ruolo &quot;Insegnante&quot; dalla pagina Profile per vedere gli studenti.</p>
+          <p>Solo gli insegnanti autorizzati (email whitelist) possono accedere a questa sezione.</p>
         )}
       </fieldset>
     </main>

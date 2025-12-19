@@ -1,19 +1,26 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { LoginButtons } from '../components/LoginButtons';
 import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
+import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
 
 export default function ComposerPage(): JSX.Element {
-  const { status } = useSession();
-  const { role } = useUserRole('teacher');
+  const { data: session, status } = useSession();
+  const email = session?.user?.email ?? null;
+  const allowedRoles = useMemo(() => getAllowedRoles(email), [email]);
+  const defaultRole = useMemo(() => getDefaultRoleForEmail(email), [email]);
+  const { role } = useUserRole(defaultRole, allowedRoles);
+  const isTeacherAllowed = allowedRoles.includes('teacher');
+  const isTeacher = role === 'teacher';
 
   if (status === 'loading') {
     return (
       <main>
         <div className="page-header">
-          <h1>Composer</h1>
+          <h1>Compositore</h1>
         </div>
         <p>Caricamento...</p>
       </main>
@@ -24,7 +31,7 @@ export default function ComposerPage(): JSX.Element {
     return (
       <main>
         <div className="page-header">
-          <h1>Composer</h1>
+          <h1>Compositore</h1>
           <LoginButtons />
         </div>
         <p>Accedi come insegnante per creare o assegnare esercizi.</p>
@@ -32,12 +39,10 @@ export default function ComposerPage(): JSX.Element {
     );
   }
 
-  const isTeacher = role === 'teacher';
-
   return (
     <main>
       <div className="page-header">
-        <h1>Composer</h1>
+        <h1>Compositore</h1>
         <LoginButtons />
       </div>
 
@@ -47,8 +52,10 @@ export default function ComposerPage(): JSX.Element {
         <legend>Area insegnanti</legend>
         {isTeacher ? (
           <p>Qui potrai creare esercizi personalizzati per i tuoi studenti (prossimamente).</p>
+        ) : isTeacherAllowed ? (
+          <p>Seleziona il ruolo &quot;Insegnante&quot; nella pagina Profilo per accedere al composer.</p>
         ) : (
-          <p>Seleziona il ruolo &quot;Insegnante&quot; nella pagina Profile per accedere al composer.</p>
+          <p>Questa sezione è riservata a insegnanti autorizzati (email whitelist).</p>
         )}
       </fieldset>
     </main>

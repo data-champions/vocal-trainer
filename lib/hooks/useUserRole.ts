@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export type UserRole = 'student' | 'teacher';
 
@@ -9,26 +9,40 @@ const isValidRole = (value: string | null): value is UserRole => {
   return value === 'student' || value === 'teacher';
 };
 
-export function useUserRole(defaultRole: UserRole = 'student') {
+export function useUserRole(
+  defaultRole: UserRole = 'student',
+  allowedRoles: UserRole[] = ['student', 'teacher']
+) {
+  const allowed = useMemo(
+    () => (allowedRoles.length ? allowedRoles : ['student']),
+    [allowedRoles]
+  );
   const [role, setRole] = useState<UserRole>(() => {
     if (typeof window !== 'undefined') {
       const stored = window.localStorage.getItem(ROLE_STORAGE_KEY);
-      if (isValidRole(stored)) {
+      if (isValidRole(stored) && allowed.includes(stored)) {
         return stored;
       }
     }
-    return defaultRole;
+    if (allowed.includes(defaultRole)) {
+      return defaultRole;
+    }
+    return allowed[0];
   });
+  const [hasUserSetRole, setHasUserSetRole] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
     const stored = window.localStorage.getItem(ROLE_STORAGE_KEY);
-    if (isValidRole(stored) && stored !== role) {
+    if (isValidRole(stored) && allowed.includes(stored) && stored !== role) {
       setRole(stored);
     }
-  }, [role]);
+    if (stored && !isValidRole(stored)) {
+      window.localStorage.removeItem(ROLE_STORAGE_KEY);
+    }
+  }, [allowed, role]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -38,13 +52,16 @@ export function useUserRole(defaultRole: UserRole = 'student') {
       if (event.key !== ROLE_STORAGE_KEY) {
         return;
       }
-      if (isValidRole(event.newValue)) {
+      if (isValidRole(event.newValue) && allowed.includes(event.newValue)) {
         setRole(event.newValue);
       }
     };
     const handleLocalRoleEvent = (event: Event) => {
       if ('detail' in event && isValidRole((event as CustomEvent).detail)) {
-        setRole((event as CustomEvent<UserRole>).detail);
+        const nextRole = (event as CustomEvent<UserRole>).detail;
+        if (allowed.includes(nextRole)) {
+          setRole(nextRole);
+        }
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -53,15 +70,32 @@ export function useUserRole(defaultRole: UserRole = 'student') {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener(ROLE_EVENT, handleLocalRoleEvent as EventListener);
     };
-  }, []);
+  }, [allowed]);
 
-  const updateRole = useCallback((nextRole: UserRole) => {
-    setRole(nextRole);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(ROLE_STORAGE_KEY, nextRole);
-      window.dispatchEvent(new CustomEvent<UserRole>(ROLE_EVENT, { detail: nextRole }));
+  useEffect(() => {
+    if (!allowed.includes(role)) {
+      setRole(allowed.includes(defaultRole) ? defaultRole : allowed[0]);
+      return;
     }
-  }, []);
+    if (!hasUserSetRole && allowed.includes(defaultRole) && role !== defaultRole) {
+      setRole(defaultRole);
+    }
+  }, [allowed, defaultRole, hasUserSetRole, role]);
+
+  const updateRole = useCallback(
+    (nextRole: UserRole) => {
+      if (!allowed.includes(nextRole)) {
+        return;
+      }
+      setHasUserSetRole(true);
+      setRole(nextRole);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(ROLE_STORAGE_KEY, nextRole);
+        window.dispatchEvent(new CustomEvent<UserRole>(ROLE_EVENT, { detail: nextRole }));
+      }
+    },
+    [allowed]
+  );
 
   return { role, setRole: updateRole };
 }
