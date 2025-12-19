@@ -144,7 +144,7 @@ export function usePitchDetection({
         highPass.frequency.value = 40;
         setInputFilterNode(highPass);
         const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
+        analyser.fftSize = 2048; //2048 is a bit slower but more accurate than 1024
         analyserRef.current = analyser;
         highPass.connect(analyser);
         setAudioContextState(audioContext);
