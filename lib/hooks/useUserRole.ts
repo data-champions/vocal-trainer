@@ -13,7 +13,7 @@ export function useUserRole(
   defaultRole: UserRole = 'student',
   allowedRoles: UserRole[] = ['student', 'teacher']
 ) {
-  const allowed = useMemo(
+  const allowed = useMemo<UserRole[]>(
     () => (allowedRoles.length ? allowedRoles : ['student']),
     [allowedRoles]
   );
