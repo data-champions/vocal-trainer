@@ -4,6 +4,10 @@ import { PitchDetector } from 'pitchy';
 import { computeSplDb, isBelowNoiseFloor } from '../pitch';
 import type { PitchSample } from '../types';
 import { useLatestRef, useRafLoop } from './common';
+import {
+  useNoiseProcessor,
+  type DenoiserType,
+} from './useNoiseProcessor';
 
 type PitchStatus = 'idle' | 'starting' | 'ready' | 'error';
 type AnalyserBuffer = Float32Array;
@@ -13,6 +17,7 @@ type UsePitchDetectionParams = {
   selectedRangeFrequencies: { min: number; max: number };
   getTargetFrequency: () => number | null;
   audioElementRef: MutableRefObject<HTMLAudioElement | null>;
+  denoiserType: DenoiserType;
 };
 
 export function usePitchDetection({
@@ -20,6 +25,7 @@ export function usePitchDetection({
   selectedRangeFrequencies,
   getTargetFrequency,
   audioElementRef,
+  denoiserType,
 }: UsePitchDetectionParams) {
   const [voiceFrequency, setVoiceFrequency] = useState<number | null>(null);
   const [voiceDetected, setVoiceDetected] = useState(true);
@@ -27,6 +33,9 @@ export function usePitchDetection({
   const [pitchSamples, setPitchSamples] = useState<PitchSample[]>([]);
   const [targetHistory, setTargetHistory] = useState<(number | null)[]>([]);
   const [pitchStatus, setPitchStatus] = useState<PitchStatus>('idle');
+  const [audioContextState, setAudioContextState] = useState<AudioContext | null>(null);
+  const [inputStream, setInputStream] = useState<MediaStream | null>(null);
+  const [inputFilterNode, setInputFilterNode] = useState<BiquadFilterNode | null>(null);
 
   const noiseThresholdRef = useLatestRef(noiseThreshold);
   const targetFrequencyRef = useLatestRef<number | null>(null);
@@ -48,6 +57,17 @@ export function usePitchDetection({
     targetFrequencyRef.current = getTargetFrequency();
   });
 
+  const {
+    status: denoiserStatus,
+    error: denoiserError,
+    effectiveMode: activeDenoiser,
+  } = useNoiseProcessor({
+    audioContext: audioContextState,
+    stream: inputStream,
+    destination: inputFilterNode,
+    mode: denoiserType,
+  });
+
   const cleanup = useCallback(() => {
     if (pitchRafRef.current) {
       cancelAnimationFrame(pitchRafRef.current);
@@ -64,6 +84,9 @@ export function usePitchDetection({
     pitchDetectorRef.current = null;
     analyserRef.current = null;
     analyserBufferRef.current = null;
+    setAudioContextState(null);
+    setInputStream(null);
+    setInputFilterNode(null);
   }, []);
 
   useEffect(() => cleanup, [cleanup]);
@@ -106,6 +129,7 @@ export function usePitchDetection({
           },
         });
         micStreamRef.current = stream;
+        setInputStream(stream);
         const win = window as typeof window & {
           webkitAudioContext?: typeof AudioContext;
         };
@@ -113,21 +137,21 @@ export function usePitchDetection({
         if (!AudioCtx) {
           throw new Error('AudioContext non supportato');
         }
-        const audioContext = new AudioCtx();
+        const audioContext = new AudioCtx({ latencyHint: 'interactive' });
         audioContextRef.current = audioContext;
-        const source = audioContext.createMediaStreamSource(stream);
         const highPass = audioContext.createBiquadFilter();
         highPass.type = 'highpass';
         highPass.frequency.value = 40;
+        setInputFilterNode(highPass);
         const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
+        analyser.fftSize = 2048; //2048 is a bit slower but more accurate than 1024
         analyserRef.current = analyser;
+        highPass.connect(analyser);
+        setAudioContextState(audioContext);
         analyserBufferRef.current = new Float32Array(analyser.fftSize);
         pitchDetectorRef.current = PitchDetector.forFloat32Array(
           analyser.fftSize
         );
-        source.connect(highPass);
-        highPass.connect(analyser);
         setPitchSamples([]);
         setTargetHistory([]);
         setVoiceFrequency(null);
@@ -144,6 +168,16 @@ export function usePitchDetection({
     };
     void start();
   }, [pitchStatus]);
+
+  useEffect(() => {
+    setPitchSamples([]);
+    setTargetHistory([]);
+    setVoiceFrequency(null);
+    voiceFrequencyRef.current = null;
+    setPitchOutOfRange(false);
+    silenceAccumRef.current = 0;
+    outOfRangeAccumRef.current = 0;
+  }, [denoiserType]);
 
   useEffect(
     () => () => {
@@ -246,7 +280,7 @@ export function usePitchDetection({
     voiceFrequencyRef,
   ]);
 
-  useRafLoop(detectPitch, pitchStatus === 'ready');
+  useRafLoop(detectPitch, pitchStatus === 'ready' && denoiserStatus === 'ready');
 
   return {
     voiceFrequency,
@@ -255,6 +289,9 @@ export function usePitchDetection({
     pitchSamples,
     targetHistory,
     pitchStatus,
+    denoiserStatus,
+    denoiserError,
+    activeDenoiser,
     targetFrequencyRef,
     voiceFrequencyRef,
   };

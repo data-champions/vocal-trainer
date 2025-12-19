@@ -21,6 +21,7 @@ import {
 import { getPitchAdvice } from '../lib/pitch';
 import { usePianoSequence } from '../lib/hooks/usePianoSequence';
 import { usePitchDetection } from '../lib/hooks/usePitchDetection';
+import { type DenoiserType } from '../lib/hooks/useNoiseProcessor';
 import { useEventListener, useRafLoop } from '../lib/hooks/common';
 import { NotationToggle } from './components/NotationToggle';
 import { RangeSelector } from './components/RangeSelector';
@@ -41,6 +42,7 @@ export default function HomePage(): JSX.Element {
   const [noteCount, setNoteCount] = useState(3);
   const [playMode, setPlayMode] = useState<'single' | 'loop'>('single');
   const [noiseThreshold, setNoiseThreshold] = useState(30);
+  const [denoiserType, setDenoiserType] = useState<DenoiserType>('dsp');
   const [showPlot, setShowPlot] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [currentTargetFrequency, setCurrentTargetFrequency] = useState<
@@ -192,6 +194,8 @@ export default function HomePage(): JSX.Element {
     pitchSamples,
     targetHistory,
     pitchStatus,
+    denoiserStatus,
+    denoiserError,
     targetFrequencyRef,
     voiceFrequencyRef,
   } = usePitchDetection({
@@ -199,7 +203,10 @@ export default function HomePage(): JSX.Element {
     selectedRangeFrequencies,
     getTargetFrequency: () => currentTargetFrequencyRef.current,
     audioElementRef,
+    denoiserType,
   });
+
+  const isPitchReady = pitchStatus === 'ready' && denoiserStatus === 'ready';
 
   useEffect(() => {
     currentTargetFrequencyRef.current = currentTargetFrequency;
@@ -265,19 +272,17 @@ export default function HomePage(): JSX.Element {
   }, [voiceFrequency, notationMode]);
 
   const pitchComparisonLabel = useMemo(() => {
-    if (!audioUrl || !currentTargetFrequency || pitchStatus !== 'ready') {
+    if (!audioUrl || !currentTargetFrequency || !isPitchReady) {
       return null;
     }
     if (!voiceFrequency || voiceFrequency <= 0 || currentTargetFrequency <= 0) {
       return null;
     }
     return getPitchAdvice(currentTargetFrequency, voiceFrequency);
-  }, [audioUrl, currentTargetFrequency, voiceFrequency, pitchStatus]);
-
-  const isPitchReady = pitchStatus === 'ready';
+  }, [audioUrl, currentTargetFrequency, voiceFrequency, isPitchReady]);
 
   useEffect(() => {
-    if (pitchStatus !== 'ready') {
+    if (!isPitchReady) {
       return;
     }
     const intervalId = window.setInterval(() => {
@@ -317,7 +322,7 @@ export default function HomePage(): JSX.Element {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [pitchStatus, targetFrequencyRef, voiceFrequencyRef]);
+  }, [isPitchReady, targetFrequencyRef, voiceFrequencyRef]);
 
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
@@ -415,6 +420,10 @@ export default function HomePage(): JSX.Element {
         isPitchReady={isPitchReady}
         noiseThreshold={noiseThreshold}
         onNoiseThresholdChange={setNoiseThreshold}
+        denoiserType={denoiserType}
+        onDenoiserChange={(mode) => setDenoiserType(mode)}
+        denoiserStatus={denoiserStatus}
+        denoiserError={denoiserError}
         selectedNoteLabel={
           selectedNote ? formatNoteByNotation(selectedNote, notationMode) : ''
         }
