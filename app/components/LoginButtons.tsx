@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
 
@@ -34,11 +34,56 @@ function GoogleIcon(): JSX.Element {
   );
 }
 
+function MailIcon(): JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        fill="currentColor"
+        d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm8 7.15L5.92 7.6L4.08 9l7.24 5.43a1 1 0 0 0 1.16 0L19.76 9L17.92 7.6L12 12.15Z"
+      />
+    </svg>
+  );
+}
+
 export function LoginButtons(): JSX.Element {
   const { data: session, status } = useSession();
+  const [emailSignInPending, setEmailSignInPending] = useState(false);
 
   const handleGoogleLogin = useCallback(() => {
     void signIn('google', { callbackUrl: '/' });
+  }, []);
+
+  const handleEmailLogin = useCallback(async () => {
+    const emailInput = window.prompt('Inserisci la tua email per accedere');
+    if (!emailInput) {
+      return;
+    }
+    const normalizedEmail = emailInput.trim();
+    if (!normalizedEmail) {
+      return;
+    }
+    try {
+      setEmailSignInPending(true);
+      const response = await signIn('email', {
+        email: normalizedEmail,
+        redirect: false,
+        callbackUrl: '/',
+      });
+      if (response?.error) {
+        window.alert('Errore invio email. Controlla le variabili EMAIL_SERVER ed EMAIL_FROM.');
+        return;
+      }
+      window.alert('Controlla la tua email per il link di accesso.');
+    } finally {
+      setEmailSignInPending(false);
+    }
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -66,7 +111,7 @@ export function LoginButtons(): JSX.Element {
     return provider === 'google' ? 'Google' : 'Email';
   }, [session?.user?.provider]);
 
-  const isLoading = status === 'loading';
+  const isLoading = status === 'loading' || emailSignInPending;
   const isAuthenticated = status === 'authenticated';
 
   return (
@@ -104,6 +149,16 @@ export function LoginButtons(): JSX.Element {
           >
             <GoogleIcon />
             Accedi con Google
+          </button>
+          <button
+            type="button"
+            className="login-button email-button"
+            disabled={isLoading}
+            onClick={handleEmailLogin}
+            aria-label="Accedi con email"
+          >
+            <MailIcon />
+            Accedi con email
           </button>
         </>
       )}
