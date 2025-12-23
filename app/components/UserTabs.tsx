@@ -25,7 +25,7 @@ const teacherTabs: TabConfig[] = [
 
 const studentTabs: TabConfig[] = [
   { label: 'Profilo', href: '/profile' },
-  { label: 'Esercizi insegnante', href: '/teacher-exercises' },
+  { label: 'I miei esercizi', href: '/my-exercises' },
   { label: 'Esercizi base', href: '/' },
 ];
 

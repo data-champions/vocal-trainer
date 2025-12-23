@@ -80,7 +80,13 @@ export default function ProfilePage(): JSX.Element {
                 I miei studenti
               </Link>
             </div>
-          ) : null}
+          ) : (
+            <div className="profile-actions" aria-label="Azioni studente">
+              <Link className="profile-action-link" href="/my-exercises">
+                I miei esercizi
+              </Link>
+            </div>
+          )}
         </fieldset>
       </div>
     </main>

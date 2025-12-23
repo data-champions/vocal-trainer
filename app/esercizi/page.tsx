@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { LoginButtons } from '../components/LoginButtons';
-import { UserTabs } from '../components/UserTabs';
 
 export default function TeacherExercisesPage(): JSX.Element {
   const { data: session, status } = useSession();
@@ -39,8 +38,6 @@ export default function TeacherExercisesPage(): JSX.Element {
         <h1>I miei esercizi</h1>
         <LoginButtons />
       </div>
-
-      {/* <UserTabs /> */}
 
       <div className="page-actions">
         <Link className="page-action-link" href="/compositore">
