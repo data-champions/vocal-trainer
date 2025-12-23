@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { LoginButtons } from '../components/LoginButtons';
-import { UserTabs } from '../components/UserTabs';
+// import { UserTabs } from '../components/UserTabs';
 
 export default function ProfilePage(): JSX.Element {
   const { data: session, status } = useSession();
@@ -60,10 +60,10 @@ export default function ProfilePage(): JSX.Element {
               <p className="profile-label">Email</p>
               <p className="profile-value">{session.user?.email ?? '—'}</p>
             </div>
-            <div>
+            {/* <div>
               <p className="profile-label">Provider</p>
               <p className="profile-value">{session.user?.provider ?? '—'}</p>
-            </div>
+            </div> */}
             <div>
               <p className="profile-label">Ruolo</p>
               <p className="profile-value">
@@ -73,8 +73,8 @@ export default function ProfilePage(): JSX.Element {
           </div>
           {isTeacher ? (
             <div className="profile-actions" aria-label="Azioni insegnante">
-              <Link className="profile-action-link" href="/composer">
-                Crea esercizi
+              <Link className="profile-action-link" href="/esercizi">
+                I miei esercizi
               </Link>
               <Link className="profile-action-link" href="/students">
                 I miei studenti

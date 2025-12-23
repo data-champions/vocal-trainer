@@ -17,7 +17,8 @@ type TabConfig = {
 
 const teacherTabs: TabConfig[] = [
   { label: 'Profilo', href: '/profile' },
-  { label: 'Compositore', href: '/composer' },
+  { label: 'Esercizi', href: '/esercizi' },
+  { label: 'Compositore', href: '/compositore' },
   { label: 'Studenti', href: '/students' },
   { label: 'Esercizi base', href: '/' },
 ];
