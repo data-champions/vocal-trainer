@@ -47,7 +47,13 @@ export function UserTabs(): JSX.Element | null {
     return null;
   }
 
-  const tabs = resolveTabs(role);
+  const effectiveRole =
+    typeof session?.user?.isTeacher === 'boolean'
+      ? session.user.isTeacher
+        ? 'teacher'
+        : 'student'
+      : role;
+  const tabs = resolveTabs(effectiveRole);
 
   return (
     <nav className="tab-bar" aria-label="Sezioni utente">

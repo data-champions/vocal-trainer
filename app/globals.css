@@ -594,6 +594,27 @@ audio {
   gap: 12px;
 }
 
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.profile-action-link {
+  text-decoration: none;
+  color: inherit;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.profile-action-link:hover {
+  background: rgba(148, 163, 184, 0.2);
+}
+
 .profile-label {
   margin: 0 0 4px;
   color: #cbd5f5;
