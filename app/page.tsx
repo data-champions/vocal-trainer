@@ -29,7 +29,6 @@ import { PlaybackControls } from './components/PlaybackControls';
 import { PitchStatus } from './components/PitchStatus';
 import { PitchChart } from './components/PitchChart';
 import { LoginButtons } from './components/LoginButtons';
-import { UserTabs } from './components/UserTabs';
 
 export default function HomePage(): JSX.Element {
   const [notationMode, setNotationMode] = useState<NotationMode>(
@@ -381,7 +380,6 @@ export default function HomePage(): JSX.Element {
         <h1>Voice trainer 🎹</h1>
         <LoginButtons />
       </div>
-      <UserTabs />
       <div className="card-grid">
         <fieldset>
           <legend>Impostazioni di notazione</legend>

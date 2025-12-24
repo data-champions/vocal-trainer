@@ -1,9 +1,10 @@
-import NextAuth from 'next-auth';
+// import NextAuth from 'next-auth';
 import { DefaultJWT } from 'next-auth/jwt';
 
 declare module 'next-auth' {
   interface Session {
     user?: {
+      isTeacher: boolean | undefined;
       name?: string | null;
       email?: string | null;
       image?: string | null;

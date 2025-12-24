@@ -2,17 +2,13 @@
 
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import { LoginButtons } from '../components/LoginButtons';
-import { UserTabs } from '../components/UserTabs';
-import { useUserRole } from '../../lib/hooks/useUserRole';
-import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
+// import { UserTabs } from '../components/UserTabs';
 
 export default function ProfilePage(): JSX.Element {
   const { data: session, status } = useSession();
-  const email = session?.user?.email ?? null;
-  const allowedRoles = useMemo(() => getAllowedRoles(email), [email]);
-  const defaultRole = useMemo(() => getDefaultRoleForEmail(email), [email]);
-  const { role } = useUserRole(defaultRole, allowedRoles);
+  const isTeacher = session?.user?.isTeacher ?? false;
 
   const displayName = useMemo(() => {
     return session?.user?.name || session?.user?.email || 'Account';
@@ -36,7 +32,9 @@ export default function ProfilePage(): JSX.Element {
           <h1>Profilo</h1>
           <LoginButtons />
         </div>
-        <p>Accedi per scegliere se usare l&apos;app come studente o insegnante.</p>
+        <p>
+          Accedi per scegliere se usare l&apos;app come studente o insegnante.
+        </p>
       </main>
     );
   }
@@ -48,7 +46,7 @@ export default function ProfilePage(): JSX.Element {
         <LoginButtons />
       </div>
 
-      <UserTabs />
+      {/* <UserTabs /> */}
 
       <div className="card-grid">
         <fieldset>
@@ -62,17 +60,33 @@ export default function ProfilePage(): JSX.Element {
               <p className="profile-label">Email</p>
               <p className="profile-value">{session.user?.email ?? '—'}</p>
             </div>
-            <div>
+            {/* <div>
               <p className="profile-label">Provider</p>
               <p className="profile-value">{session.user?.provider ?? '—'}</p>
-            </div>
+            </div> */}
             <div>
               <p className="profile-label">Ruolo</p>
               <p className="profile-value">
-                {role === 'teacher' ? 'Insegnante' : 'Studente'}
+                {isTeacher ? 'Insegnante' : 'Studente'}
               </p>
             </div>
           </div>
+          {isTeacher ? (
+            <div className="profile-actions" aria-label="Azioni insegnante">
+              <Link className="profile-action-link" href="/esercizi">
+                I miei esercizi
+              </Link>
+              <Link className="profile-action-link" href="/students">
+                I miei studenti
+              </Link>
+            </div>
+          ) : (
+            <div className="profile-actions" aria-label="Azioni studente">
+              <Link className="profile-action-link" href="/my-exercises">
+                I miei esercizi
+              </Link>
+            </div>
+          )}
         </fieldset>
       </div>
     </main>

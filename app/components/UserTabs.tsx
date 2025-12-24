@@ -17,14 +17,15 @@ type TabConfig = {
 
 const teacherTabs: TabConfig[] = [
   { label: 'Profilo', href: '/profile' },
-  { label: 'Compositore', href: '/composer' },
+  { label: 'Esercizi', href: '/esercizi' },
+  { label: 'Compositore', href: '/compositore' },
   { label: 'Studenti', href: '/students' },
   { label: 'Esercizi base', href: '/' },
 ];
 
 const studentTabs: TabConfig[] = [
   { label: 'Profilo', href: '/profile' },
-  { label: 'Esercizi insegnante', href: '/teacher-exercises' },
+  { label: 'I miei esercizi', href: '/my-exercises' },
   { label: 'Esercizi base', href: '/' },
 ];
 
@@ -47,7 +48,13 @@ export function UserTabs(): JSX.Element | null {
     return null;
   }
 
-  const tabs = resolveTabs(role);
+  const effectiveRole =
+    typeof session?.user?.isTeacher === 'boolean'
+      ? session.user.isTeacher
+        ? 'teacher'
+        : 'student'
+      : role;
+  const tabs = resolveTabs(effectiveRole);
 
   return (
     <nav className="tab-bar" aria-label="Sezioni utente">

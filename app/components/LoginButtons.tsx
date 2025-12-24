@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { signIn, signOut, useSession } from 'next-auth/react';
+import Link from 'next/link';
 
 function GoogleIcon(): JSX.Element {
   return (
@@ -70,11 +71,16 @@ export function LoginButtons(): JSX.Element {
     }
     try {
       setEmailSignInPending(true);
-      await signIn('credentials', {
+      const response = await signIn('email', {
         email: normalizedEmail,
-        redirect: true,
+        redirect: false,
         callbackUrl: '/',
       });
+      if (response?.error) {
+        window.alert('Errore invio email. Controlla le variabili EMAIL_SERVER ed EMAIL_FROM.');
+        return;
+      }
+      window.alert('Controlla la tua email per il link di accesso.');
     } finally {
       setEmailSignInPending(false);
     }
@@ -85,11 +91,7 @@ export function LoginButtons(): JSX.Element {
   }, []);
 
   const displayName = useMemo(() => {
-    return (
-      session?.user?.name ||
-      session?.user?.email ||
-      'Account'
-    );
+    return session?.user?.name || session?.user?.email || 'Account';
   }, [session?.user?.email, session?.user?.name]);
 
   const avatarInitial = useMemo(() => {
@@ -116,16 +118,17 @@ export function LoginButtons(): JSX.Element {
     <div className="auth-actions" aria-label="Sezione di accesso">
       {isAuthenticated ? (
         <>
-          <div
+          <Link
+            href="/profile"
             className="user-pill"
             title={session?.user?.email ?? displayName}
           >
             <span className="user-avatar">{avatarInitial}</span>
             <div className="user-details">
               <span className="user-name">{displayName}</span>
-              <span className="user-provider">Home - {providerLabel}</span>
+              {/* <span className="user-provider">Home - {providerLabel}</span> */}
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             className="text-button"

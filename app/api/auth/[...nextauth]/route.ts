@@ -1,6 +1,9 @@
 import NextAuth, { type NextAuthOptions } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
+import EmailProvider from 'next-auth/providers/email';
 import GoogleProvider from 'next-auth/providers/google';
+import { MongoDBAdapter } from '@next-auth/mongodb-adapter';
+import clientPromise from '../../../../lib/mongodb';
+import { ObjectId } from 'mongodb';
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -10,6 +13,7 @@ if (!googleClientId || !googleClientSecret) {
 }
 
 const authOptions: NextAuthOptions = {
+  adapter: MongoDBAdapter(clientPromise),
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: 'jwt' },
   pages: {
@@ -20,36 +24,34 @@ const authOptions: NextAuthOptions = {
       clientId: googleClientId,
       clientSecret: googleClientSecret,
     }),
-    CredentialsProvider({
-      name: 'Email',
-      credentials: {
-        email: { label: 'Email', type: 'text' },
-      },
-      authorize: async (credentials) => {
-        const emailInput = credentials?.email;
-        if (!emailInput || typeof emailInput !== 'string') {
-          return null;
-        }
-        const email = emailInput.trim();
-        if (!email) {
-          return null;
-        }
-        const username = email.split('@')[0] || 'Account';
-        const friendlyName =
-          username.charAt(0).toUpperCase() + username.slice(1);
-        return {
-          id: email,
-          name: friendlyName,
-          email,
-          provider: 'email',
-        };
-      },
+    EmailProvider({
+      server: process.env.EMAIL_SERVER,
+      from: process.env.EMAIL_FROM,
     }),
   ],
   callbacks: {
     async jwt({ token, account, user }) {
       if (account?.provider) {
         token.provider = account.provider;
+      }
+      if (user && typeof user === 'object' && 'isTeacher' in user) {
+        token.isTeacher = (user as { isTeacher?: boolean }).isTeacher ?? true;
+      }
+      if (token.sub && typeof token.isTeacher !== 'boolean') {
+        const client = await clientPromise;
+        const db = client.db();
+        const userRecord = await db
+          .collection('users')
+          .findOne({ _id: new ObjectId(token.sub) }, { projection: { isTeacher: 1 } });
+        if (userRecord && typeof userRecord.isTeacher === 'boolean') {
+          token.isTeacher = userRecord.isTeacher;
+        } else {
+          await db.collection('users').updateOne(
+            { _id: new ObjectId(token.sub) },
+            { $set: { isTeacher: true } }
+          );
+          token.isTeacher = true;
+        }
       }
       if (user && typeof user === 'object' && 'provider' in user) {
         const maybeProvider = (user as { provider?: string }).provider;
@@ -63,6 +65,8 @@ const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.provider =
           typeof token.provider === 'string' ? token.provider : undefined;
+        session.user.isTeacher =
+          typeof token.isTeacher === 'boolean' ? token.isTeacher : undefined;
       }
       return session;
     },
@@ -79,6 +83,19 @@ const authOptions: NextAuthOptions = {
         console.error('Invalid redirect URL', error);
       }
       return baseUrl;
+    },
+  },
+  events: {
+    async createUser({ user }) {
+      if (!user.id) {
+        return;
+      }
+      const client = await clientPromise;
+      const db = client.db();
+      await db.collection('users').updateOne(
+        { _id: new ObjectId(user.id) },
+        { $setOnInsert: { isTeacher: true } }
+      );
     },
   },
 };

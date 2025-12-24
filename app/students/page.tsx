@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { LoginButtons } from '../components/LoginButtons';
-import { UserTabs } from '../components/UserTabs';
+// import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
 import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
 
@@ -14,7 +14,10 @@ export default function StudentsPage(): JSX.Element {
   const defaultRole = useMemo(() => getDefaultRoleForEmail(email), [email]);
   const { role } = useUserRole(defaultRole, allowedRoles);
   const isTeacherAllowed = allowedRoles.includes('teacher');
-  const isTeacher = role === 'teacher';
+  const isTeacher =
+    typeof session?.user?.isTeacher === 'boolean'
+      ? session.user.isTeacher
+      : role === 'teacher';
 
   if (status === 'loading') {
     return (
@@ -46,16 +49,31 @@ export default function StudentsPage(): JSX.Element {
         <LoginButtons />
       </div>
 
-      <UserTabs />
+      {/* <UserTabs /> */}
 
       <fieldset>
         <legend>Gestione studenti</legend>
         {isTeacher ? (
-          <p>Panoramica studenti e assegnazioni arriveranno qui (prossimamente).</p>
+          <>
+            <div className="page-actions">
+              <button type="button" className="page-action-button">
+                Invita nuovo studente
+              </button>
+            </div>
+            <p>
+              Panoramica studenti e assegnazioni arriveranno qui (prossimamente).
+            </p>
+          </>
         ) : isTeacherAllowed ? (
-          <p>Passa al ruolo &quot;Insegnante&quot; dalla pagina Profilo per vedere gli studenti.</p>
+          <p>
+            Passa al ruolo &quot;Insegnante&quot; dalla pagina Profilo per
+            vedere gli studenti.
+          </p>
         ) : (
-          <p>Solo gli insegnanti autorizzati (email whitelist) possono accedere a questa sezione.</p>
+          <p>
+            Solo gli insegnanti autorizzati (email whitelist) possono accedere a
+            questa sezione.
+          </p>
         )}
       </fieldset>
     </main>
