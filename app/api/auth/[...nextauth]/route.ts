@@ -38,19 +38,24 @@ const authOptions: NextAuthOptions = {
         token.isTeacher = (user as { isTeacher?: boolean }).isTeacher ?? true;
       }
       if (token.sub && typeof token.isTeacher !== 'boolean') {
-        const client = await clientPromise;
-        const db = client.db();
-        const userRecord = await db
-          .collection('users')
-          .findOne({ _id: new ObjectId(token.sub) }, { projection: { isTeacher: 1 } });
-        if (userRecord && typeof userRecord.isTeacher === 'boolean') {
-          token.isTeacher = userRecord.isTeacher;
-        } else {
-          await db.collection('users').updateOne(
-            { _id: new ObjectId(token.sub) },
-            { $set: { isTeacher: true } }
-          );
+        if (!ObjectId.isValid(token.sub)) {
           token.isTeacher = true;
+        } else {
+          const client = await clientPromise;
+          const db = client.db();
+          const userId = new ObjectId(token.sub);
+          const userRecord = await db
+            .collection('users')
+            .findOne({ _id: userId }, { projection: { isTeacher: 1 } });
+          if (userRecord && typeof userRecord.isTeacher === 'boolean') {
+            token.isTeacher = userRecord.isTeacher;
+          } else {
+            await db.collection('users').updateOne(
+              { _id: userId },
+              { $set: { isTeacher: true } }
+            );
+            token.isTeacher = true;
+          }
         }
       }
       if (user && typeof user === 'object' && 'provider' in user) {
