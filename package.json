@@ -2,8 +2,9 @@
   "name": "vocal-trainer-next",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.3.0",
   "engines": {
-    "node": ">=20.14.0",
+    "node": ">=20.19.0",
     "npm": ">=10.7.0"
   },
   "scripts": {

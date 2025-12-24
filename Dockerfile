@@ -6,7 +6,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN corepack enable
+COPY pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
