@@ -77,7 +77,9 @@ export function LoginButtons(): JSX.Element {
         callbackUrl: '/',
       });
       if (response?.error) {
-        window.alert('Errore invio email. Controlla le variabili EMAIL_SERVER ed EMAIL_FROM.');
+        window.alert(
+          'Errore invio email. Controlla le variabili EMAIL_SERVER ed EMAIL_FROM.'
+        );
         return;
       }
       window.alert('Controlla la tua email per il link di accesso.');
@@ -125,7 +127,8 @@ export function LoginButtons(): JSX.Element {
           >
             <span className="user-avatar">{avatarInitial}</span>
             <div className="user-details">
-              <span className="user-name">{displayName}</span>
+              <span className="user-name user-name--full">{displayName}</span>
+              <span className="user-name user-name--short">PROFILO</span>
               {/* <span className="user-provider">Home - {providerLabel}</span> */}
             </div>
           </Link>

@@ -26,6 +26,37 @@ body {
     #0b0c10;
 }
 
+.site-shell {
+  width: 100%;
+}
+
+.site-header {
+  width: min(720px, 92vw);
+  margin: 6px auto 0;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.home-link {
+  text-decoration: none;
+  color: #e2e8f0;
+  padding: 6px 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.home-link:hover {
+  color: #f8fafc;
+}
+
+.home-link__title {
+  margin: 0;
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
 main {
   width: min(720px, 92vw);
   background: rgba(15, 23, 42, 0.85);
@@ -34,7 +65,7 @@ main {
   box-shadow: 0 30px 80px rgba(15, 23, 42, 0.6);
   border-radius: 24px;
   padding: 48px clamp(24px, 6vw, 56px);
-  margin: clamp(32px, 6vh, 80px) auto;
+  margin: 16px auto clamp(32px, 6vh, 80px);
   color: inherit;
 }
 
@@ -132,6 +163,10 @@ main {
   line-height: 1.2;
 }
 
+.user-name--short {
+  display: none;
+}
+
 .user-provider {
   font-size: 0.85rem;
   color: #cbd5f5;
@@ -191,6 +226,32 @@ main {
 
   .page-actions {
     grid-template-columns: 1fr;
+  }
+
+  .user-pill {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .user-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
+  }
+
+  .user-name--full {
+    display: none;
+  }
+
+  .user-name--short {
+    display: inline;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+  }
+
+  .text-button {
+    padding: 8px 10px;
+    font-size: 0.85rem;
   }
 }
 
@@ -547,6 +608,32 @@ audio {
   color: #0f172a;
   border-color: rgba(148, 163, 184, 0.35);
   box-shadow: 0 8px 20px rgba(129, 140, 248, 0.25);
+}
+
+.home-navbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.home-navbar__link {
+  text-decoration: none;
+  color: #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-weight: 700;
+  text-align: center;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.home-navbar__link:hover {
+  background: rgba(148, 163, 184, 0.24);
 }
 
 .role-grid {
