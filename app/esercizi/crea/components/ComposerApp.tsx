@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import interact from "interactjs";
 import { Note } from "./Note";
 import type { NoteDuration, NoteModel } from "../types";
@@ -155,6 +155,92 @@ const midiFromStaffSlot = (staffSlot: number, clef: "treble" | "bass") => {
   return midi;
 };
 
+type DropEvent = {
+  target: EventTarget | null;
+  relatedTarget?: EventTarget | null;
+  dragEvent?: {
+    clientX: number;
+    clientY: number;
+  } | null;
+};
+
+const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
+  let candidate = x;
+  const occupied = notes
+    .filter((note) => note.id !== ignoreId)
+    .map((note) => note.x ?? note.beat * NOTE_STEP);
+
+  let attempts = 0;
+  while (occupied.some((pos) => Math.abs(candidate - pos) < NOTE_STEP)) {
+    candidate += NOTE_STEP;
+    attempts += 1;
+    if (attempts > notes.length + 4) {
+      break;
+    }
+  }
+
+  return candidate;
+};
+
+const computeDropPlacement = (event: DropEvent) => {
+  const dropzone = event.target as HTMLElement | null;
+  const notesArea = dropzone?.querySelector(".dropzone-notes") as HTMLElement | null;
+  const staffLines = dropzone
+    ?.querySelector(".staff-area")
+    ?.querySelectorAll(".staff-lines span");
+
+  if (!notesArea || !staffLines || staffLines.length === 0) {
+    return { x: 0, y: 0, slot: 0 };
+  }
+
+  const notesRect = notesArea.getBoundingClientRect();
+  const lineCenters = Array.from(staffLines)
+    .map((line) => {
+      const rect = (line as HTMLElement).getBoundingClientRect();
+      return rect.top + rect.height / 2 - notesRect.top;
+    })
+    .sort((a, b) => a - b);
+
+  const slotPositions: number[] = [];
+  for (let i = 0; i < lineCenters.length; i++) {
+    slotPositions.push(lineCenters[i]);
+    if (i < lineCenters.length - 1) {
+      slotPositions.push((lineCenters[i] + lineCenters[i + 1]) / 2);
+    }
+  }
+
+  if (lineCenters.length > 1) {
+    const lineSpacing = lineCenters[1] - lineCenters[0];
+    const slotStep = lineSpacing / 2;
+
+    for (let i = 1; i <= LEDGER_SLOT_COUNT; i++) {
+      slotPositions.unshift(lineCenters[0] - slotStep * i);
+      slotPositions.push(lineCenters[lineCenters.length - 1] + slotStep * i);
+    }
+  }
+
+  const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
+  const dropX = (event.dragEvent?.clientX ?? notesRect.left) - notesRect.left;
+
+  let nearestSlot = 0;
+  let nearestDiff = Number.POSITIVE_INFINITY;
+  slotPositions.forEach((pos, idx) => {
+    const diff = Math.abs(dropY - pos);
+    if (diff < nearestDiff) {
+      nearestDiff = diff;
+      nearestSlot = idx;
+    }
+  });
+
+  const y = (slotPositions[nearestSlot] ?? 0) - NOTE_HEAD_OFFSET_Y;
+  const x = Math.max(
+    0,
+    Math.min(notesRect.width - NOTE_WIDTH, dropX - NOTE_HEAD_OFFSET_X)
+  );
+
+  return { x, y, slot: nearestSlot };
+};
+
 export default function ComposerApp() {
   const [clef, setClef] = useState<"treble" | "bass">("treble");
   const clefSymbol = clef === "treble" ? "\uD834\uDD1E" : "\uD834\uDD22";
@@ -168,24 +254,6 @@ export default function ComposerApp() {
   const idCounter = useRef(0);
   const [placedNotes, setPlacedNotes] = useState<NoteModel[]>([]);
   const hasNotes = placedNotes.length > 0;
-
-  const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
-    let candidate = x;
-    const occupied = notes
-      .filter((note) => note.id !== ignoreId)
-      .map((note) => note.x ?? note.beat * NOTE_STEP);
-
-    let attempts = 0;
-    while (occupied.some((pos) => Math.abs(candidate - pos) < NOTE_STEP)) {
-      candidate += NOTE_STEP;
-      attempts += 1;
-      if (attempts > notes.length + 4) {
-        break;
-      }
-    }
-
-    return candidate;
-  };
 
   const handleExportMidi = () => {
     if (!hasNotes) {
@@ -247,65 +315,6 @@ export default function ComposerApp() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  };
-
-  const computeDropPlacement = (event: any) => {
-    const dropzone = event.target as HTMLElement | null;
-    const notesArea = dropzone?.querySelector(".dropzone-notes") as HTMLElement | null;
-    const staffLines = dropzone
-      ?.querySelector(".staff-area")
-      ?.querySelectorAll(".staff-lines span");
-
-    if (!notesArea || !staffLines || staffLines.length === 0) {
-      return { x: 0, y: 0, slot: 0 };
-    }
-
-    const notesRect = notesArea.getBoundingClientRect();
-    const lineCenters = Array.from(staffLines)
-      .map((line) => {
-        const rect = (line as HTMLElement).getBoundingClientRect();
-        return rect.top + rect.height / 2 - notesRect.top;
-      })
-      .sort((a, b) => a - b);
-
-    const slotPositions: number[] = [];
-    for (let i = 0; i < lineCenters.length; i++) {
-      slotPositions.push(lineCenters[i]);
-      if (i < lineCenters.length - 1) {
-        slotPositions.push((lineCenters[i] + lineCenters[i + 1]) / 2);
-      }
-    }
-
-    if (lineCenters.length > 1) {
-      const lineSpacing = lineCenters[1] - lineCenters[0];
-      const slotStep = lineSpacing / 2;
-
-      for (let i = 1; i <= LEDGER_SLOT_COUNT; i++) {
-        slotPositions.unshift(lineCenters[0] - slotStep * i);
-        slotPositions.push(lineCenters[lineCenters.length - 1] + slotStep * i);
-      }
-    }
-
-    const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
-    const dropX = (event.dragEvent?.clientX ?? notesRect.left) - notesRect.left;
-
-    let nearestSlot = 0;
-    let nearestDiff = Number.POSITIVE_INFINITY;
-    slotPositions.forEach((pos, idx) => {
-      const diff = Math.abs(dropY - pos);
-      if (diff < nearestDiff) {
-        nearestDiff = diff;
-        nearestSlot = idx;
-      }
-    });
-
-    const y = (slotPositions[nearestSlot] ?? 0) - NOTE_HEAD_OFFSET_Y;
-    const x = Math.max(
-      0,
-      Math.min(notesRect.width - NOTE_WIDTH, dropX - NOTE_HEAD_OFFSET_X)
-    );
-
-    return { x, y, slot: nearestSlot };
   };
 
   useEffect(() => {
@@ -407,7 +416,7 @@ export default function ComposerApp() {
       interact(".draggable").unset();
       interact(".dropzone").unset();
     };
-  }, []);
+  }, [clef]);
 
   useEffect(() => {
     setPlacedNotes((prev) =>
@@ -418,6 +427,11 @@ export default function ComposerApp() {
       )
     );
   }, [clef]);
+
+  const clefAnchorStyle = {
+    ["--clef-anchor-y" as string]:
+      clef === "bass" ? "var(--f-line-y)" : "var(--g-line-y)"
+  } as CSSProperties;
 
   return (
     <div className="page">
@@ -466,13 +480,7 @@ export default function ComposerApp() {
         <div id="drop-target" className="dropzone">
           <div className="dropzone-label">{clefLabel}</div>
           <div className="staff">
-            <div
-              className="staff-area"
-              style={{
-                ["--clef-anchor-y" as any]:
-                  clef === "bass" ? "var(--f-line-y)" : "var(--g-line-y)"
-              }}
-            >
+            <div className="staff-area" style={clefAnchorStyle}>
               <div className="staff-clef" aria-hidden="true">
                 {clefSymbol}
               </div>
