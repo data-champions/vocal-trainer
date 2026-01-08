@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import interact from 'interactjs';
 import NoteGlyph from './NoteGlyph';
-import { Note, Score } from '../types';
+import type { Note, Score } from '../types';
 
 const MEASURE_WIDTH = 200;
 const STAFF_HEIGHT = 200;

@@ -9,3 +9,17 @@ export interface NoteModel {
   y?: number;
   staffSlot?: number;
 }
+
+export type Note = {
+  id: string;
+  pitch: string;
+  startBeat: number;
+  duration: number;
+};
+
+export type Score = {
+  measures: number;
+  beatsPerMeasure: number;
+  pitches: string[];
+  notes: Note[];
+};

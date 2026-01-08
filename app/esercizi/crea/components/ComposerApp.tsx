@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import interact from "interactjs";
-import { Note } from "./components/Note";
-import type { NoteDuration, NoteModel } from "./types";
+import { Note } from "./Note";
+import type { NoteDuration, NoteModel } from "../types";
 
 const NOTE_WIDTH = 20;
 const NOTE_HEAD_OFFSET_X = 40;
@@ -155,7 +155,7 @@ const midiFromStaffSlot = (staffSlot: number, clef: "treble" | "bass") => {
   return midi;
 };
 
-export default function App() {
+export default function ComposerApp() {
   const [clef, setClef] = useState<"treble" | "bass">("treble");
   const clefSymbol = clef === "treble" ? "\uD834\uDD1E" : "\uD834\uDD22";
   const clefLabel = clef === "treble" ? "Chiave di violino" : "Chiave di basso";

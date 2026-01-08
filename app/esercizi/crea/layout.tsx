@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import '../../../src/app/globals.css';
+import './composer-base.css';
 import './composer.css';
 
 export default function CreateExerciseLayout({

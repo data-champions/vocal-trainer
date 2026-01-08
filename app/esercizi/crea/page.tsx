@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import ComposerApp from '../../../src/App';
+import ComposerApp from './components/ComposerApp';
 import { LoginButtons } from '../../components/LoginButtons';
 
 export default function CreateExercisePage(): JSX.Element {
