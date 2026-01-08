@@ -40,7 +40,7 @@ export default function TeacherExercisesPage(): JSX.Element {
       </div>
 
       <div className="page-actions">
-        <Link className="page-action-link" href="/compositore">
+        <Link className="page-action-link" href="/esercizi/crea">
           Crea nuovo
         </Link>
         {/* <Link className="page-action-link" href="/profile">
