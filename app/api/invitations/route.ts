@@ -4,7 +4,14 @@ import { randomBytes } from 'crypto';
 import { ObjectId } from 'mongodb';
 import clientPromise from '../../../lib/mongodb';
 
-const INVITE_TTL_DAYS = 7;
+function getBaseUrl(request: NextRequest) {
+  return (
+    process.env.CURRENT_URL ||
+    process.env.NEXTAUTH_URL ||
+    request.headers.get('origin') ||
+    ''
+  );
+}
 
 export async function POST(request: NextRequest) {
   const token = await getToken({
@@ -22,24 +29,54 @@ export async function POST(request: NextRequest) {
   }
 
   const inviteToken = randomBytes(32).toString('hex');
-  const expiresAt = new Date(
-    Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000
-  );
   const client = await clientPromise;
   const db = client.db();
   await db.collection('invitations').insertOne({
     teacherId: new ObjectId(token.sub as string),
     token: inviteToken,
-    expiresAt,
     createdAt: new Date(),
   });
 
-  const baseUrl =
-    process.env.NEXTAUTH_URL || request.headers.get('origin') || '';
+  const baseUrl = getBaseUrl(request);
   const inviteLink = `${baseUrl.replace(
     /\/$/,
     ''
   )}/register?invite=${inviteToken}`;
 
-  return NextResponse.json({ inviteLink, expiresAt });
+  return NextResponse.json({ inviteLink });
+}
+
+export async function GET(request: NextRequest) {
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!ObjectId.isValid(token.sub ?? '')) {
+    return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
+  }
+  if (!token.isTeacher) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const client = await clientPromise;
+  const db = client.db();
+  const teacherId = new ObjectId(token.sub as string);
+  const invitations = await db
+    .collection('invitations')
+    .find({ teacherId, usedAt: { $exists: false }, revokedAt: { $exists: false } })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  const baseUrl = getBaseUrl(request).replace(/\/$/, '');
+  const items = invitations.map((invite) => ({
+    id: invite._id.toString(),
+    token: invite.token as string,
+    createdAt: invite.createdAt ? new Date(invite.createdAt).toISOString() : null,
+    inviteLink: `${baseUrl}/register?invite=${invite.token}`,
+  }));
+
+  return NextResponse.json({ invitations: items });
 }

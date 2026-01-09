@@ -25,14 +25,20 @@ export async function POST(request: NextRequest) {
   if (!invitation) {
     return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
   }
-  if (invitation.expiresAt && new Date(invitation.expiresAt).getTime() < Date.now()) {
-    return NextResponse.json({ error: 'Invite expired' }, { status: 410 });
+  if (invitation.revokedAt) {
+    return NextResponse.json({ error: 'Invite revoked' }, { status: 410 });
   }
   if (invitation.usedAt) {
     return NextResponse.json({ error: 'Invite already used' }, { status: 409 });
   }
 
   const studentId = new ObjectId(token.sub as string);
+  if (invitation.teacherId?.equals?.(studentId)) {
+    return NextResponse.json(
+      { error: 'Cannot accept your own invite' },
+      { status: 409 }
+    );
+  }
   await db.collection('students').updateOne(
     { teacherId: invitation.teacherId, studentId },
     { $setOnInsert: { teacherId: invitation.teacherId, studentId, createdAt: new Date() } },

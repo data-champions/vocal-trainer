@@ -23,6 +23,9 @@ export default function StudentsPage(): JSX.Element {
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'loading' | 'copied'>(
     'idle'
   );
+  const [invites, setInvites] = useState<
+    Array<{ id: string; inviteLink: string; createdAt: string | null }>
+  >([]);
   const [students, setStudents] = useState<
     Array<{ id: string; name: string; email: string }>
   >([]);
@@ -38,6 +41,17 @@ export default function StudentsPage(): JSX.Element {
     setStudents(data.students ?? []);
   }, []);
 
+  const loadInvites = useCallback(async () => {
+    const response = await fetch('/api/invitations');
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as {
+      invitations: Array<{ id: string; inviteLink: string; createdAt: string | null }>;
+    };
+    setInvites(data.invitations ?? []);
+  }, []);
+
   const handleInvite = useCallback(async () => {
     setInviteStatus('loading');
     const response = await fetch('/api/invitations', { method: 'POST' });
@@ -49,6 +63,7 @@ export default function StudentsPage(): JSX.Element {
     setInviteLink(data.inviteLink);
     setShowFullInvite(false);
     setInviteStatus('idle');
+    void loadInvites();
   }, []);
 
   const handleCopy = useCallback(async () => {
@@ -60,12 +75,26 @@ export default function StudentsPage(): JSX.Element {
     window.setTimeout(() => setInviteStatus('idle'), 1500);
   }, [inviteLink]);
 
+  const handleRevoke = useCallback(async (inviteId: string, link: string) => {
+    await fetch('/api/invitations/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inviteId }),
+    });
+    if (inviteLink === link) {
+      setInviteLink('');
+      setShowFullInvite(false);
+    }
+    void loadInvites();
+  }, [inviteLink, loadInvites]);
+
   useEffect(() => {
     if (status !== 'authenticated' || !isTeacher) {
       return;
     }
     void loadStudents();
-  }, [isTeacher, loadStudents, status]);
+    void loadInvites();
+  }, [isTeacher, loadStudents, loadInvites, status]);
 
   if (status === 'loading') {
     return (
@@ -143,6 +172,27 @@ export default function StudentsPage(): JSX.Element {
                       {showFullInvite ? 'Nascondi' : 'Mostra'}
                     </button>
                   </div>
+                </div>
+              ) : null}
+              {invites.length > 0 ? (
+                <div className="invite-list">
+                  <p className="invite-list__title">Inviti attivi</p>
+                  <ul className="invite-list__items">
+                    {invites.map((invite) => (
+                      <li key={invite.id} className="invite-list__item">
+                        <span className="invite-list__link">
+                          {invite.inviteLink.slice(0, 28)}…{invite.inviteLink.slice(-10)}
+                        </span>
+                        <button
+                          type="button"
+                          className="invite-link-copy"
+                          onClick={() => handleRevoke(invite.id, invite.inviteLink)}
+                        >
+                          Revoca
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
             </div>

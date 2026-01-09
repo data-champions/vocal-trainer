@@ -10,6 +10,7 @@ export default function RegisterClient(): JSX.Element {
   const inviteToken = searchParams.get('invite')?.trim() ?? '';
   const { data: session, status, update } = useSession();
   const [linkStatus, setLinkStatus] = useState<'idle' | 'linking' | 'done' | 'error'>('idle');
+  const [linkError, setLinkError] = useState('');
   const callbackUrl = useMemo(
     () => `/register?invite=${encodeURIComponent(inviteToken)}`,
     [inviteToken]
@@ -43,6 +44,8 @@ export default function RegisterClient(): JSX.Element {
     })
       .then(async (res) => {
         if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          setLinkError(data.error ?? 'Registrazione non riuscita.');
           setLinkStatus('error');
           return;
         }
@@ -50,6 +53,7 @@ export default function RegisterClient(): JSX.Element {
         await update();
       })
       .catch(() => {
+        setLinkError('Registrazione non riuscita.');
         setLinkStatus('error');
       });
   }, [inviteToken, linkStatus, status]);
@@ -105,7 +109,9 @@ export default function RegisterClient(): JSX.Element {
             </>
           )}
           {linkStatus === 'error' && (
-            <p className="register-text">Non è stato possibile completare la registrazione.</p>
+            <p className="register-text">
+              Non è stato possibile completare la registrazione. {linkError}
+            </p>
           )}
         </div>
       )}
