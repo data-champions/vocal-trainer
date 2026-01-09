@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import interact from "interactjs";
+import { encodeWav } from "../../../../lib/audio";
+import { GAP_SECONDS } from "../../../../lib/constants";
+import { NOTE_NAMES } from "../../../../lib/notes";
+import { renderPianoMelody, type PianoNoteEvent } from "../../../../lib/piano";
 import { Note } from "./Note";
 import type { NoteDuration, NoteModel } from "../types";
 
@@ -13,6 +17,7 @@ const NOTE_GAP = NOTE_WIDTH * 0.25;
 const NOTE_STEP = NOTE_WIDTH + NOTE_GAP;
 const PPQ = 480;
 const DEFAULT_TEMPO_MICROS = 500000;
+const SECONDS_PER_BEAT = DEFAULT_TEMPO_MICROS / 1_000_000;
 const TREBLE_BASE_MIDI = 67; // G4
 const BASS_BASE_MIDI = 53; // F3
 const TREBLE_BASE_SLOT = LEDGER_SLOT_COUNT + 6; // G line (second from bottom)
@@ -44,6 +49,12 @@ const midiToPitch = (midi: number) => {
   return `${note}/${octave}`;
 };
 
+const midiToToneNote = (midi: number) => {
+  const index = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return `${NOTE_NAMES[index]}${octave}`;
+};
+
 const writeUint32 = (value: number) => [
   (value >> 24) & 0xff,
   (value >> 16) & 0xff,
@@ -70,6 +81,22 @@ const writeVarLen = (value: number) => {
   }
 
   return bytes;
+};
+
+const noteSortValue = (note: NoteModel) => note.x ?? note.beat * NOTE_STEP;
+
+const buildPlaybackNotes = (notes: NoteModel[]): PianoNoteEvent[] => {
+  const sortedNotes = [...notes].sort(
+    (a, b) => noteSortValue(a) - noteSortValue(b)
+  );
+
+  return sortedNotes
+    .map((note) => ({
+      note: midiToToneNote(note.midi ?? 60),
+      durationSeconds:
+        (durationToBeats[note.duration] ?? 1) * SECONDS_PER_BEAT,
+    }))
+    .filter((note) => note.note && note.durationSeconds > 0);
 };
 
 const buildMidiFile = (notes: Array<NoteModel>) => {
@@ -254,6 +281,10 @@ export default function ComposerApp() {
   const idCounter = useRef(0);
   const [placedNotes, setPlacedNotes] = useState<NoteModel[]>([]);
   const hasNotes = placedNotes.length > 0;
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isRenderingAudio, setIsRenderingAudio] = useState(false);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const shouldAutoplayRef = useRef(false);
 
   const handleExportMidi = () => {
     if (!hasNotes) {
@@ -273,13 +304,62 @@ export default function ComposerApp() {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportJson = () => {
+  const handleListen = useCallback(async () => {
     if (!hasNotes) {
-      alert("Non ci sono note da esportare.");
+      window.alert("Non ci sono note da riprodurre.");
       return;
     }
 
-    const sortedNotes = [...placedNotes].sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
+    const playbackNotes = buildPlaybackNotes(placedNotes);
+    if (playbackNotes.length === 0) {
+      window.alert("Nessuna nota valida da riprodurre.");
+      return;
+    }
+
+    setIsRenderingAudio(true);
+    try {
+      const rendering = await renderPianoMelody(playbackNotes, GAP_SECONDS);
+      if (!rendering || rendering.samples.length === 0) {
+        window.alert("Nessun audio generato.");
+        return;
+      }
+
+      const wavBuffer = encodeWav(rendering.samples, rendering.sampleRate, 1);
+      const blob = new Blob([wavBuffer], { type: "audio/wav" });
+      const url = URL.createObjectURL(blob);
+      shouldAutoplayRef.current = true;
+      setAudioUrl((prev) => {
+        if (prev) {
+          URL.revokeObjectURL(prev);
+        }
+        return url;
+      });
+    } catch (error) {
+      console.error("Errore nella riproduzione del pianoforte", error);
+      window.alert("Errore nella riproduzione del pianoforte.");
+    } finally {
+      setIsRenderingAudio(false);
+    }
+  }, [hasNotes, placedNotes]);
+
+  const handleSaveMelody = () => {
+    if (!hasNotes) {
+      alert("Non ci sono note da salvare.");
+      return;
+    }
+
+    const exerciseName = window.prompt("Nome dell'esercizio:");
+    if (!exerciseName) {
+      return;
+    }
+    const trimmedName = exerciseName.trim();
+    if (!trimmedName) {
+      return;
+    }
+
+    const sortedNotes = [...placedNotes].sort(
+      (a, b) => noteSortValue(a) - noteSortValue(b)
+    );
     let currentBeat = 0;
     const notes: Array<{ pitch: string; duration: string; start: number }> = [];
 
@@ -296,6 +376,7 @@ export default function ComposerApp() {
     });
 
     const payload = {
+      name: trimmedName,
       metadata: {
         tempo: 120,
         timeSignature: "4/4",
@@ -306,16 +387,39 @@ export default function ComposerApp() {
     };
 
     const json = JSON.stringify(payload, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "melody.json";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    // TODO: Integrare il salvataggio nel DB quando l'endpoint è disponibile.
+    console.info("Melodia pronta per il salvataggio:", json);
   };
+
+  useEffect(() => {
+    if (!audioUrl || !shouldAutoplayRef.current) {
+      return;
+    }
+    const audioEl = audioElementRef.current;
+    if (!audioEl) {
+      return;
+    }
+    const playWhenReady = () => {
+      void audioEl.play();
+      shouldAutoplayRef.current = false;
+    };
+    if (audioEl.readyState >= 2) {
+      playWhenReady();
+    } else {
+      audioEl.addEventListener("canplay", playWhenReady, { once: true });
+      return () => {
+        audioEl.removeEventListener("canplay", playWhenReady);
+      };
+    }
+  }, [audioUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
 
   useEffect(() => {
     interact(".draggable").draggable({
@@ -437,11 +541,11 @@ export default function ComposerApp() {
     <div className="page">
       <div className="palette">
         <div className="clef-toggle">
-          <label htmlFor="clef-select">Chiave</label>
           <select
-            id="clef-select"
             value={clef}
             onChange={(event) => setClef(event.target.value as "treble" | "bass")}
+            aria-label="Scegli chiave"
+            title="Scegli chiave"
           >
             <option value="treble">Violino</option>
             <option value="bass">Basso</option>
@@ -458,10 +562,18 @@ export default function ComposerApp() {
         <button
           type="button"
           className="export-json"
-          onClick={handleExportJson}
+          onClick={handleSaveMelody}
           disabled={!hasNotes}
         >
-          Esporta JSON
+          Salva melodia
+        </button>
+        <button
+          type="button"
+          className="export-midi"
+          onClick={handleListen}
+          disabled={!hasNotes || isRenderingAudio}
+        >
+          {isRenderingAudio ? "Preparazione..." : "Ascolta"}
         </button>
         {paletteNotes.map((note) => (
           <div
@@ -475,6 +587,17 @@ export default function ComposerApp() {
           </div>
         ))}
       </div>
+
+        {audioUrl ? (
+          <audio
+            key={audioUrl}
+            ref={audioElementRef}
+            controls
+            src={audioUrl}
+            className="composer-audio"
+            aria-label="Riproduzione melodia"
+        />
+         ) : null}
 
       <div className="container">
         <div id="drop-target" className="dropzone">
@@ -509,8 +632,11 @@ export default function ComposerApp() {
               </div>
             </div>
           </div>
+
         </div>
+        
       </div>
+
     </div>
   );
 }

@@ -44,7 +44,6 @@ main.composer-shell {
 
 .clef-toggle {
   color: #cbd5f5;
-  border-right: 1px solid rgba(148, 163, 184, 0.25);
 }
 
 .clef-toggle select {
@@ -91,6 +90,10 @@ main.composer-shell {
 
 .staff-clef {
   color: #e2e8f0;
+}
+
+.composer-audio {
+  width: 100%;
 }
 
 @media (max-width: 640px) {
