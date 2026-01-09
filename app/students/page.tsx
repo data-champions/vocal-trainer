@@ -63,7 +63,7 @@ export default function StudentsPage(): JSX.Element {
     setShowFullInvite(false);
     setInviteStatus('idle');
     void loadInvites();
-  }, []);
+  }, [loadInvites]);
 
   const handleCopy = useCallback(async () => {
     if (!inviteLink) {

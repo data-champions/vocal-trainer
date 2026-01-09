@@ -149,7 +149,7 @@ export default function HomePage(): JSX.Element {
     const schedule = playbackScheduleRef.current;
     const applyTarget = (note: string | null) => {
       const frequency = note ? midiFrequency(note) : null;
-      if (targetFrequencyRef.current !== frequency) {
+      if (currentTargetFrequencyRef.current !== frequency) {
         setCurrentTargetFrequency(frequency);
       }
       const nextNote = note ?? '';
@@ -190,7 +190,6 @@ export default function HomePage(): JSX.Element {
     pitchSamples,
     targetHistory,
     pitchStatus,
-    targetFrequencyRef,
     voiceFrequencyRef,
   } = usePitchDetection({
     noiseThreshold,
@@ -201,8 +200,7 @@ export default function HomePage(): JSX.Element {
 
   useEffect(() => {
     currentTargetFrequencyRef.current = currentTargetFrequency;
-    targetFrequencyRef.current = currentTargetFrequency;
-  }, [currentTargetFrequency, targetFrequencyRef]);
+  }, [currentTargetFrequency]);
 
   const sequenceFrequencyBounds = useMemo(() => {
     if (sequence.length === 0) {
@@ -286,7 +284,7 @@ export default function HomePage(): JSX.Element {
       if (!isAudioPlaying) {
         return;
       }
-      const targetHz = targetFrequencyRef.current;
+      const targetHz = currentTargetFrequencyRef.current;
       const voiceHz = voiceFrequencyRef.current;
       const deltaHz =
         targetHz !== null && voiceHz !== null ? targetHz - voiceHz : null;
@@ -315,7 +313,7 @@ export default function HomePage(): JSX.Element {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [pitchStatus, targetFrequencyRef, voiceFrequencyRef]);
+  }, [pitchStatus, voiceFrequencyRef]);
 
   useEffect(() => {
     if (!audioUrl || sequence.length === 0) {
