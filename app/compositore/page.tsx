@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { LoginButtons } from '../components/LoginButtons';
-import { UserTabs } from '../components/UserTabs';
 
 export default function CompositorePage(): JSX.Element {
   const { data: session, status } = useSession();
@@ -38,8 +37,6 @@ export default function CompositorePage(): JSX.Element {
         <h1>Compositore</h1>
         <LoginButtons />
       </div>
-
-      <UserTabs />
 
       <div className="page-actions">
         <Link className="page-action-link" href="/esercizi">

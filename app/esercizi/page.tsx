@@ -60,7 +60,7 @@ export default function TeacherExercisesPage(): JSX.Element {
               ))}
             </ul>
           ) : (
-            <p>Nessun esercizio creato.</p>
+            <p>Questa sezione dimostra come gli studenti vedono gli esercizi dell'insegnante.</p>
           )
         ) : (
           <p>Questa sezione è riservata agli insegnanti.</p>

@@ -135,7 +135,6 @@ export function LoginButtons(): JSX.Element {
         </>
       ) : (
         <>
-          <p>LOGIN</p>
           <br></br>
           <button
             type="button"
@@ -145,7 +144,7 @@ export function LoginButtons(): JSX.Element {
             aria-label="Accedi con Google"
           >
             <GoogleIcon />
-            Google
+            Accedi con Google
           </button>
           <button
             type="button"
@@ -155,7 +154,7 @@ export function LoginButtons(): JSX.Element {
             aria-label="Accedi con email"
           >
             <MailIcon />
-            email
+            Accedi con email
           </button>
         </>
       )}

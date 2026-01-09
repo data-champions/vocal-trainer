@@ -626,7 +626,8 @@ audio {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
-  margin: 0 0 18px;
+  width: min(720px, 92vw);
+  margin: 16px auto 18px;
   padding: 10px;
   border-radius: 16px;
   background: rgba(15, 23, 42, 0.7);
@@ -646,6 +647,13 @@ audio {
 
 .home-navbar__link:hover {
   background: rgba(148, 163, 184, 0.24);
+}
+
+.home-navbar__link.is-active {
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 8px 20px rgba(129, 140, 248, 0.25);
 }
 
 .role-grid {
