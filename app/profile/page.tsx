@@ -68,16 +68,7 @@ export default function ProfilePage(): JSX.Element {
               </p>
             </div>
           </div>
-          {isTeacher ? (
-            <div className="profile-actions" aria-label="Azioni insegnante">
-              <Link className="profile-action-link" href="/esercizi">
-                I miei esercizi
-              </Link>
-              <Link className="profile-action-link" href="/students">
-                I miei studenti
-              </Link>
-            </div>
-          ) : (
+          {isTeacher ? null : (
             <div className="profile-actions" aria-label="Azioni studente">
               <Link className="profile-action-link" href="/my-exercises">
                 I miei esercizi

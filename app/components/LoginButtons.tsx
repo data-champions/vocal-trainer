@@ -121,12 +121,11 @@ export function LoginButtons(): JSX.Element {
             <div className="user-details">
               <span className="user-name user-name--full">{displayName}</span>
               <span className="user-name user-name--short">PROFILO</span>
-              {/* <span className="user-provider">Home - {providerLabel}</span> */}
             </div>
           </Link>
           <button
             type="button"
-            className="text-button"
+            className="user-pill"
             onClick={handleLogout}
             aria-label="Esci"
           >

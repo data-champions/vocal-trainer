@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import interact from "interactjs";
-import { encodeWav } from "../../../../lib/audio";
-import { GAP_SECONDS } from "../../../../lib/constants";
-import { NOTE_NAMES } from "../../../../lib/notes";
-import { renderPianoMelody, type PianoNoteEvent } from "../../../../lib/piano";
+import { encodeWav } from "../../../lib/audio";
+import { GAP_SECONDS } from "../../../lib/constants";
+import { NOTE_NAMES } from "../../../lib/notes";
+import { renderPianoMelody, type PianoNoteEvent } from "../../../lib/piano";
 import { Note } from "./Note";
 import type { NoteDuration, NoteModel } from "../types";
 

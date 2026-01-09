@@ -36,15 +36,6 @@ export default function TeacherExercisesPage(): JSX.Element {
         <h1>I miei esercizi</h1>
       </div>
 
-      <div className="page-actions">
-        <Link className="page-action-link" href="/esercizi/crea">
-          Crea nuovo
-        </Link>
-        {/* <Link className="page-action-link" href="/profile">
-          Torna al profilo
-        </Link> */}
-      </div>
-
       <fieldset>
         <legend>Lista esercizi</legend>
         {isTeacher ? (
