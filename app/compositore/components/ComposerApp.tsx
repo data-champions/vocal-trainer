@@ -539,6 +539,9 @@ export default function ComposerApp() {
 
   return (
     <div className="page">
+      <div className="composer-header">
+        <h1>Crea esercizio</h1>
+      </div>
       <div className="palette">
         <div className="clef-toggle">
           <select
@@ -551,14 +554,6 @@ export default function ComposerApp() {
             <option value="bass">Basso</option>
           </select>
         </div>
-        <button
-          type="button"
-          className="export-midi"
-          onClick={handleExportMidi}
-          disabled={!hasNotes}
-        >
-          Esporta MIDI
-        </button>
         <button
           type="button"
           className="export-json"

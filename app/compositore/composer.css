@@ -13,27 +13,18 @@ body {
   color: #e2e8f0;
 }
 
-main.composer-shell {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.composer-meta {
-  padding: 24px 24px 0;
-}
-
-.composer-meta p {
-  margin-top: 0;
-}
-
 .page {
+  width: 100%;
   background: transparent;
   color: inherit;
+  padding: 0;
+  min-height: auto;
+}
+
+.composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .palette {
@@ -97,7 +88,7 @@ main.composer-shell {
 }
 
 @media (max-width: 640px) {
-  .composer-meta {
-    padding: 16px 16px 0;
+  .composer-header {
+    width: 100%;
   }
 }
