@@ -37,7 +37,7 @@ const authOptions: NextAuthOptions = {
       if (user && typeof user === 'object' && 'isTeacher' in user) {
         token.isTeacher = (user as { isTeacher?: boolean }).isTeacher ?? true;
       }
-      if (token.sub && typeof token.isTeacher !== 'boolean') {
+      if (token.sub) {
         if (!ObjectId.isValid(token.sub)) {
           token.isTeacher = true;
         } else {

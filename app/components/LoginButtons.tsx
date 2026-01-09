@@ -77,7 +77,9 @@ export function LoginButtons(): JSX.Element {
         callbackUrl: '/',
       });
       if (response?.error) {
-        window.alert('Errore invio email. Controlla le variabili EMAIL_SERVER ed EMAIL_FROM.');
+        window.alert(
+          'Errore invio email. Controlla le variabili EMAIL_SERVER ed EMAIL_FROM.'
+        );
         return;
       }
       window.alert('Controlla la tua email per il link di accesso.');
@@ -103,14 +105,6 @@ export function LoginButtons(): JSX.Element {
     return firstChar.toUpperCase();
   }, [displayName]);
 
-  const providerLabel = useMemo(() => {
-    const provider = session?.user?.provider;
-    if (!provider) {
-      return 'Connesso';
-    }
-    return provider === 'google' ? 'Google' : 'Email';
-  }, [session?.user?.provider]);
-
   const isLoading = status === 'loading' || emailSignInPending;
   const isAuthenticated = status === 'authenticated';
 
@@ -125,7 +119,8 @@ export function LoginButtons(): JSX.Element {
           >
             <span className="user-avatar">{avatarInitial}</span>
             <div className="user-details">
-              <span className="user-name">{displayName}</span>
+              <span className="user-name user-name--full">{displayName}</span>
+              <span className="user-name user-name--short">PROFILO</span>
               {/* <span className="user-provider">Home - {providerLabel}</span> */}
             </div>
           </Link>
@@ -140,6 +135,8 @@ export function LoginButtons(): JSX.Element {
         </>
       ) : (
         <>
+          <p>LOGIN</p>
+          <br></br>
           <button
             type="button"
             className="login-button google-button"
@@ -148,7 +145,7 @@ export function LoginButtons(): JSX.Element {
             aria-label="Accedi con Google"
           >
             <GoogleIcon />
-            Accedi con Google
+            Google
           </button>
           <button
             type="button"
@@ -158,7 +155,7 @@ export function LoginButtons(): JSX.Element {
             aria-label="Accedi con email"
           >
             <MailIcon />
-            Accedi con email
+            email
           </button>
         </>
       )}
