@@ -3,7 +3,6 @@
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { LoginButtons } from '../components/LoginButtons';
 // import { UserTabs } from '../components/UserTabs';
 
 export default function ProfilePage(): JSX.Element {
@@ -30,7 +29,6 @@ export default function ProfilePage(): JSX.Element {
       <main>
         <div className="page-header">
           <h1>Profilo</h1>
-          <LoginButtons />
         </div>
         <p>
           Accedi per scegliere se usare l&apos;app come studente o insegnante.
@@ -43,7 +41,6 @@ export default function ProfilePage(): JSX.Element {
     <main>
       <div className="page-header">
         <h1>Profilo</h1>
-        <LoginButtons />
       </div>
 
       {/* <UserTabs /> */}

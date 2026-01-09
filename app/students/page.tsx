@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { LoginButtons } from '../components/LoginButtons';
 // import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
 import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
@@ -112,7 +111,6 @@ export default function StudentsPage(): JSX.Element {
       <main>
         <div className="page-header">
           <h1>Studenti</h1>
-          <LoginButtons />
         </div>
         <p>Accedi come insegnante per gestire gli studenti.</p>
       </main>
@@ -123,7 +121,6 @@ export default function StudentsPage(): JSX.Element {
     <main>
       <div className="page-header">
         <h1>Studenti</h1>
-        <LoginButtons />
       </div>
 
       {/* <UserTabs /> */}

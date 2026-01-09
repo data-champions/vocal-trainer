@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import ComposerApp from './components/ComposerApp';
-import { LoginButtons } from '../../components/LoginButtons';
 
 export default function CreateExercisePage(): JSX.Element {
   const { data: session, status } = useSession();
@@ -12,7 +11,6 @@ export default function CreateExercisePage(): JSX.Element {
   const header = (
     <div className="page-header">
       <h1>Crea esercizio</h1>
-      <LoginButtons />
     </div>
   );
 

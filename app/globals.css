@@ -34,7 +34,10 @@ body {
   width: min(720px, 92vw);
   margin: 6px auto 0;
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .home-link {
@@ -628,7 +631,7 @@ audio {
   gap: 10px;
   width: min(720px, 92vw);
   margin: 16px auto 18px;
-  padding: 10px;
+  padding: 10px clamp(24px, 6vw, 56px);
   border-radius: 16px;
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid rgba(148, 163, 184, 0.25);

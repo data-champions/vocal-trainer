@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { LoginButtons } from '../components/LoginButtons';
 
 export default function CompositorePage(): JSX.Element {
   const { data: session, status } = useSession();
@@ -24,7 +23,6 @@ export default function CompositorePage(): JSX.Element {
       <main>
         <div className="page-header">
           <h1>Compositore</h1>
-          <LoginButtons />
         </div>
         <p>Accedi come insegnante per creare esercizi.</p>
       </main>
@@ -35,7 +33,6 @@ export default function CompositorePage(): JSX.Element {
     <main>
       <div className="page-header">
         <h1>Compositore</h1>
-        <LoginButtons />
       </div>
 
       <div className="page-actions">
