@@ -12,6 +12,11 @@ export type PianoRendering = {
   sampleRate: number;
 };
 
+export type PianoNoteEvent = {
+  note: string;
+  durationSeconds: number;
+};
+
 let toneModulePromise: Promise<ToneModule> | null = null;
 let pianoPreloadPromise: Promise<void> | null = null;
 let pianoSamplesReady = false;
@@ -110,6 +115,70 @@ export async function renderPianoSequence(
       // Subtle sustained layer keeps the pitch audible for the full duration.
       sustainLayer.triggerAttackRelease(note, durationSeconds, cursor, 0.5);
       cursor += durationSeconds + gapSeconds;
+    });
+  }, offlineDuration);
+
+  const channelData = toneBuffer.toArray();
+  const channels = Array.isArray(channelData) ? channelData : [channelData];
+  if (channels.length === 0) {
+    return null;
+  }
+
+  const samples = mixToMono(channels);
+  return { samples, sampleRate: toneBuffer.sampleRate };
+}
+
+export async function renderPianoMelody(
+  notes: PianoNoteEvent[],
+  gapSeconds: number = GAP_SECONDS
+): Promise<PianoRendering | null> {
+  const playableNotes = notes.filter(
+    (note) => note.note && note.durationSeconds > 0
+  );
+  if (playableNotes.length === 0) {
+    return null;
+  }
+
+  await preloadPianoSamples();
+  const Tone = await loadToneModule();
+  const sustainSynthRelease = 0.6;
+  const releaseTail =
+    Math.max(PIANO_RELEASE_SECONDS, sustainSynthRelease) + 0.5;
+  const sequenceSpan =
+    playableNotes.reduce(
+      (total, note) => total + note.durationSeconds,
+      0
+    ) + gapSeconds * Math.max(0, playableNotes.length - 1);
+  const offlineDuration = Math.max(sequenceSpan + releaseTail, releaseTail);
+
+  const toneBuffer = await Tone.Offline(async () => {
+    const masterGain = new Tone.Gain(0.85).toDestination();
+    const sampler = new Tone.Sampler({
+      urls: PIANO_SAMPLE_MAP,
+      release: PIANO_RELEASE_SECONDS,
+      baseUrl: PIANO_SAMPLE_BASE_URL,
+    }).connect(masterGain);
+    const sustainLayer = new Tone.Synth({
+      oscillator: { type: 'sine' },
+      envelope: {
+        attack: 0.01,
+        decay: 0,
+        sustain: 1,
+        release: sustainSynthRelease,
+      },
+    }).connect(new Tone.Gain(0.35).connect(masterGain));
+    await Tone.loaded();
+
+    let cursor = 0;
+    playableNotes.forEach((note) => {
+      sampler.triggerAttackRelease(note.note, note.durationSeconds, cursor, 0.9);
+      sustainLayer.triggerAttackRelease(
+        note.note,
+        note.durationSeconds,
+        cursor,
+        0.5
+      );
+      cursor += note.durationSeconds + gapSeconds;
     });
   }, offlineDuration);
 

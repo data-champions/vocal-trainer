@@ -11,7 +11,7 @@
     "dev:turbo": "next dev -p 8501 --hostname 0.0.0.0 --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run",
     "prepare": "husky install",
     "show_network_ip": "node ./scripts/dev-with-ip.js"
