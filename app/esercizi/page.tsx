@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { LoginButtons } from '../components/LoginButtons';
 
 export default function TeacherExercisesPage(): JSX.Element {
   const { data: session, status } = useSession();
@@ -25,7 +24,6 @@ export default function TeacherExercisesPage(): JSX.Element {
       <main>
         <div className="page-header">
           <h1>I miei esercizi</h1>
-          <LoginButtons />
         </div>
         <p>Accedi come insegnante per vedere e creare esercizi.</p>
       </main>
@@ -36,16 +34,6 @@ export default function TeacherExercisesPage(): JSX.Element {
     <main>
       <div className="page-header">
         <h1>I miei esercizi</h1>
-        <LoginButtons />
-      </div>
-
-      <div className="page-actions">
-        <Link className="page-action-link" href="/esercizi/crea">
-          Crea nuovo
-        </Link>
-        {/* <Link className="page-action-link" href="/profile">
-          Torna al profilo
-        </Link> */}
       </div>
 
       <fieldset>
@@ -60,7 +48,10 @@ export default function TeacherExercisesPage(): JSX.Element {
               ))}
             </ul>
           ) : (
-            <p>Nessun esercizio creato.</p>
+            <p>
+              Questa sezione dimostra come gli studenti vedono gli esercizi
+              dell&apos;insegnante.
+            </p>
           )
         ) : (
           <p>Questa sezione è riservata agli insegnanti.</p>

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 
 type NavItem = {
@@ -22,6 +23,7 @@ const studentItems: NavItem[] = [
 
 export function Navbar(): JSX.Element | null {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
 
   if (status !== 'authenticated') {
     return null;
@@ -32,11 +34,21 @@ export function Navbar(): JSX.Element | null {
 
   return (
     <nav className="home-navbar" aria-label="Navigazione principale">
-      {items.map((item) => (
-        <Link key={item.href} href={item.href} className="home-navbar__link">
-          {item.label}
-        </Link>
-      ))}
+      {items.map((item) => {
+        const isActive =
+          pathname === item.href ||
+          (item.href !== '/' && pathname.startsWith(`${item.href}/`));
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`home-navbar__link${isActive ? ' is-active' : ''}`}
+            aria-current={isActive ? 'page' : undefined}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

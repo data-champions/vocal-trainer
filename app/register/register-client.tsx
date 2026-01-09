@@ -56,7 +56,7 @@ export default function RegisterClient(): JSX.Element {
         setLinkError('Registrazione non riuscita.');
         setLinkStatus('error');
       });
-  }, [inviteToken, linkStatus, status]);
+  }, [inviteToken, linkStatus, status, update]);
 
   if (!inviteToken) {
     return (

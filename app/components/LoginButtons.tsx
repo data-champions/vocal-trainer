@@ -121,12 +121,11 @@ export function LoginButtons(): JSX.Element {
             <div className="user-details">
               <span className="user-name user-name--full">{displayName}</span>
               <span className="user-name user-name--short">PROFILO</span>
-              {/* <span className="user-provider">Home - {providerLabel}</span> */}
             </div>
           </Link>
           <button
             type="button"
-            className="text-button"
+            className="user-pill"
             onClick={handleLogout}
             aria-label="Esci"
           >
@@ -135,7 +134,6 @@ export function LoginButtons(): JSX.Element {
         </>
       ) : (
         <>
-          <p>LOGIN</p>
           <br></br>
           <button
             type="button"
@@ -145,7 +143,7 @@ export function LoginButtons(): JSX.Element {
             aria-label="Accedi con Google"
           >
             <GoogleIcon />
-            Google
+            Accedi con Google
           </button>
           <button
             type="button"
@@ -155,7 +153,7 @@ export function LoginButtons(): JSX.Element {
             aria-label="Accedi con email"
           >
             <MailIcon />
-            email
+            Accedi con email
           </button>
         </>
       )}
