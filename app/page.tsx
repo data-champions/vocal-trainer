@@ -378,7 +378,6 @@ export default function HomePage(): JSX.Element {
   return (
     <main id="home">
       <div className="page-header">
-        {/* <h1>Cantami 🎹</h1> */}
         <LoginButtons />
       </div>
       <Navbar />

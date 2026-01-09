@@ -103,47 +103,49 @@ export default function StudentsPage(): JSX.Element {
         <legend>Gestione studenti</legend>
         {isTeacher ? (
           <>
-            <div className="page-actions">
-              <button
-                type="button"
-                className="page-action-button"
-                onClick={handleInvite}
-                disabled={inviteStatus === 'loading'}
-              >
-                Invita nuovo studente
-              </button>
-            </div>
-            {inviteLink ? (
-              <div className="invite-link-row">
-                <input
-                  className="invite-link-input"
-                  type="text"
-                  readOnly
-                  value={
-                    showFullInvite
-                      ? inviteLink
-                      : `${inviteLink.slice(0, 24)}…${inviteLink.slice(-10)}`
-                  }
-                  aria-label="Link invito studente"
-                />
-                <div className="invite-link-actions">
-                  <button
-                    type="button"
-                    className="invite-link-copy"
-                    onClick={handleCopy}
-                  >
-                    {inviteStatus === 'copied' ? 'Copiato' : 'Copia'}
-                  </button>
-                  <button
-                    type="button"
-                    className="invite-link-copy"
-                    onClick={() => setShowFullInvite((prev) => !prev)}
-                  >
-                    {showFullInvite ? 'Nascondi' : 'Mostra'}
-                  </button>
-                </div>
+            <div className="invite-block">
+              <div className="page-actions">
+                <button
+                  type="button"
+                  className="page-action-button"
+                  onClick={handleInvite}
+                  disabled={inviteStatus === 'loading'}
+                >
+                  Invita nuovo studente
+                </button>
               </div>
-            ) : null}
+              {inviteLink ? (
+                <div className="invite-link-row">
+                  <input
+                    className="invite-link-input"
+                    type="text"
+                    readOnly
+                    value={
+                      showFullInvite
+                        ? inviteLink
+                        : `${inviteLink.slice(0, 24)}…${inviteLink.slice(-10)}`
+                    }
+                    aria-label="Link invito studente"
+                  />
+                  <div className="invite-link-actions">
+                    <button
+                      type="button"
+                      className="invite-link-copy"
+                      onClick={handleCopy}
+                    >
+                      {inviteStatus === 'copied' ? 'Copiato' : 'Copia'}
+                    </button>
+                    <button
+                      type="button"
+                      className="invite-link-copy"
+                      onClick={() => setShowFullInvite((prev) => !prev)}
+                    >
+                      {showFullInvite ? 'Nascondi' : 'Mostra'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
             <p>
               Panoramica studenti e assegnazioni arriveranno qui (prossimamente).
             </p>

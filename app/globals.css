@@ -257,6 +257,14 @@ main {
     padding: 8px 10px;
     font-size: 0.85rem;
   }
+
+  .login-button {
+    min-width: 0;
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    gap: 8px;
+  }
 }
 
 h1 {
@@ -798,6 +806,10 @@ audio {
   margin: 12px 0;
 }
 
+.invite-block {
+  width: min(420px, 100%);
+}
+
 .invite-link-actions {
   display: flex;
   flex-wrap: wrap;
@@ -872,6 +884,24 @@ audio {
 .register-actions {
   display: grid;
   gap: 10px;
+}
+
+.register-link {
+  display: inline-block;
+  margin-top: 10px;
+  text-decoration: none;
+  color: #0f172a;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  font-weight: 700;
+  background: linear-gradient(135deg, #38bdf8, #22d3ee);
+  text-align: center;
+  box-shadow: 0 10px 24px rgba(34, 211, 238, 0.25);
+}
+
+.register-link:hover {
+  background: linear-gradient(135deg, #38bdf8, #67e8f9);
 }
 
 .register-meta {

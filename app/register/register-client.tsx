@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { signIn, useSession } from 'next-auth/react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 export default function RegisterClient(): JSX.Element {
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get('invite')?.trim() ?? '';
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [linkStatus, setLinkStatus] = useState<'idle' | 'linking' | 'done' | 'error'>('idle');
   const callbackUrl = useMemo(
     () => `/register?invite=${encodeURIComponent(inviteToken)}`,
@@ -46,6 +47,7 @@ export default function RegisterClient(): JSX.Element {
           return;
         }
         setLinkStatus('done');
+        await update();
       })
       .catch(() => {
         setLinkStatus('error');
@@ -95,7 +97,12 @@ export default function RegisterClient(): JSX.Element {
         <div className="register-card">
           {linkStatus === 'linking' && <p className="register-text">Sto collegando il tuo profilo...</p>}
           {linkStatus === 'done' && (
-            <p className="register-text">Registrazione completata. Ora puoi usare l&apos;app.</p>
+            <>
+              <p className="register-text">Registrazione completata. Ora puoi usare l&apos;app.</p>
+              <Link className="register-link" href="/">
+                Vai all&apos;app
+              </Link>
+            </>
           )}
           {linkStatus === 'error' && (
             <p className="register-text">Non è stato possibile completare la registrazione.</p>
