@@ -1,6 +1,9 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-var-requires */
-const sgMail = require("@sendgrid/mail");
+import sgMail, { type MailDataRequired } from "@sendgrid/mail";
+
+type CantamiEmailInput = {
+  toEmail: string;
+  toName?: string;
+};
 
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {
@@ -9,8 +12,11 @@ if (!apiKey) {
 
 sgMail.setApiKey(apiKey);
 
-async function sendCantamiEmail({ toEmail, toName = "David" }) {
-  const msg = {
+export async function sendCantamiEmail({
+  toEmail,
+  toName = "David",
+}: CantamiEmailInput): Promise<void> {
+  const msg: MailDataRequired = {
     to: {
       email: toEmail,
       name: toName,
@@ -44,7 +50,7 @@ Cantami Team<br/>
   await sgMail.send(msg);
 }
 
-if (require.main === module) {
+if (typeof require !== "undefined" && require.main === module) {
   sendCantamiEmail({
     toEmail: "fortini.david@gmail.com",
     toName: "David",
@@ -57,5 +63,3 @@ if (require.main === module) {
       process.exitCode = 1;
     });
 }
-
-module.exports = { sendCantamiEmail };
