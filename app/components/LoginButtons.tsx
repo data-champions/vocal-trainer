@@ -105,14 +105,6 @@ export function LoginButtons(): JSX.Element {
     return firstChar.toUpperCase();
   }, [displayName]);
 
-  const providerLabel = useMemo(() => {
-    const provider = session?.user?.provider;
-    if (!provider) {
-      return 'Connesso';
-    }
-    return provider === 'google' ? 'Google' : 'Email';
-  }, [session?.user?.provider]);
-
   const isLoading = status === 'loading' || emailSignInPending;
   const isAuthenticated = status === 'authenticated';
 
