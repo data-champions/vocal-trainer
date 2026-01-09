@@ -9,7 +9,7 @@ function matchesPrefix(pathname: string, prefixes: string[]) {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!matchesPrefix(pathname, [...teacherPaths, ...studentPaths])) {

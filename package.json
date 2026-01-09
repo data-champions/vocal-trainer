@@ -11,7 +11,7 @@
     "dev:turbo": "next dev -p 8501 --hostname 0.0.0.0 --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .ts,.tsx",
     "test": "vitest run",
     "prepare": "husky install",
     "show_network_ip": "node ./scripts/dev-with-ip.js"
@@ -22,7 +22,7 @@
     "chart.js": "^4.5.1",
     "interactjs": "^1.10.27",
     "mongodb": "^5.9.2",
-    "next": "^15.5.7",
+    "next": "^16.1.0",
     "next-auth": "^4.24.13",
     "nodemailer": "^7.0.12",
     "pitchy": "^4.1.0",
@@ -36,8 +36,8 @@
     "@types/node": "22.7.4",
     "@types/react": "18.3.9",
     "@types/react-dom": "18.3.0",
-    "eslint": "8.57.1",
-    "eslint-config-next": "^15.5.7",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.1.0",
     "husky": "^9.1.7",
     "typescript": "5.6.3",
     "vitest": "^4.0.15"
