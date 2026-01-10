@@ -60,6 +60,10 @@ body {
   color: #e2e8f0;
 }
 
+.dropped-note.is-outside-staff {
+  color: #000000;
+}
+
 .dropzone {
   border: 2px dashed rgba(148, 163, 184, 0.35);
   color: #e2e8f0;

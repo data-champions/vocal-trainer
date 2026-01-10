@@ -217,7 +217,14 @@ const computeDropPlacement = (event: DropEvent) => {
     ?.querySelectorAll(".staff-lines span");
 
   if (!notesArea || !staffLines || staffLines.length === 0) {
-    return { x: 0, y: 0, slot: 0 };
+    return {
+      x: 0,
+      y: 0,
+      slot: 0,
+      outOfStaff: false,
+      outOfStaffDistance: 0,
+      ledgerLineOffsets: []
+    };
   }
 
   const notesRect = notesArea.getBoundingClientRect();
@@ -227,6 +234,9 @@ const computeDropPlacement = (event: DropEvent) => {
       return rect.top + rect.height / 2 - notesRect.top;
     })
     .sort((a, b) => a - b);
+  const staffSlotCount = lineCenters.length * 2 - 1;
+  const staffSlotStart = LEDGER_SLOT_COUNT;
+  const staffSlotEnd = staffSlotStart + staffSlotCount - 1;
 
   const slotPositions: number[] = [];
   for (let i = 0; i < lineCenters.length; i++) {
@@ -259,13 +269,52 @@ const computeDropPlacement = (event: DropEvent) => {
     }
   });
 
+  const outOfStaffDistance =
+    nearestSlot < staffSlotStart
+      ? (staffSlotStart - nearestSlot) * 0.5
+      : nearestSlot > staffSlotEnd
+        ? (staffSlotEnd - nearestSlot) * 0.5
+        : 0;
+  const ledgerLineCount = Math.floor(Math.abs(outOfStaffDistance));
+  const noteSlotPosition = slotPositions[nearestSlot] ?? 0;
+  const ledgerLineOffsets: number[] = [];
+  if (ledgerLineCount > 0) {
+    if (nearestSlot < staffSlotStart) {
+      for (let i = 1; i <= ledgerLineCount; i += 1) {
+        const slotIndex = staffSlotStart - 2 * i;
+        const slotPosition = slotPositions[slotIndex];
+        if (typeof slotPosition === "number") {
+          ledgerLineOffsets.push(
+            slotPosition - noteSlotPosition + NOTE_HEAD_OFFSET_Y
+          );
+        }
+      }
+    } else if (nearestSlot > staffSlotEnd) {
+      for (let i = 1; i <= ledgerLineCount; i += 1) {
+        const slotIndex = staffSlotEnd + 2 * i;
+        const slotPosition = slotPositions[slotIndex];
+        if (typeof slotPosition === "number") {
+          ledgerLineOffsets.push(
+            slotPosition - noteSlotPosition + NOTE_HEAD_OFFSET_Y
+          );
+        }
+      }
+    }
+  }
   const y = (slotPositions[nearestSlot] ?? 0) - NOTE_HEAD_OFFSET_Y;
   const x = Math.max(
     0,
     Math.min(notesRect.width - NOTE_WIDTH, dropX - NOTE_HEAD_OFFSET_X)
   );
 
-  return { x, y, slot: nearestSlot };
+  return {
+    x,
+    y,
+    slot: nearestSlot,
+    outOfStaff: nearestSlot < staffSlotStart || nearestSlot > staffSlotEnd,
+    outOfStaffDistance,
+    ledgerLineOffsets
+  };
 };
 
 export default function ComposerApp() {
@@ -469,6 +518,7 @@ export default function ComposerApp() {
           const duration = (draggable?.dataset.duration as NoteDuration | undefined) || "quarter";
           const isPaletteItem = draggable?.dataset.palette === "true";
           const placement = computeDropPlacement(event);
+          console.log("outOfStaffDistance", placement.outOfStaffDistance);
 
           if (draggable) {
             if (isPaletteItem) {
@@ -483,7 +533,9 @@ export default function ComposerApp() {
                   beat: prev.length,
                   x: resolveNoteX(placement.x, prev),
                   y: placement.y,
-                  staffSlot: placement.slot
+                  staffSlot: placement.slot,
+                  outOfStaff: placement.outOfStaff,
+                  ledgerLineOffsets: placement.ledgerLineOffsets
                 }
               ]);
               draggable.setAttribute("data-drop-success", "false");
@@ -496,7 +548,9 @@ export default function ComposerApp() {
                         x: resolveNoteX(placement.x, prev, note.id),
                         y: placement.y,
                         staffSlot: placement.slot,
-                        midi: midiFromStaffSlot(placement.slot, clef)
+                        midi: midiFromStaffSlot(placement.slot, clef),
+                        outOfStaff: placement.outOfStaff,
+                        ledgerLineOffsets: placement.ledgerLineOffsets
                       }
                     : note
                 )
@@ -614,7 +668,7 @@ export default function ComposerApp() {
                   <div
                     key={note.id}
                     id={note.id}
-                    className="note draggable dropped-note"
+                    className={`note draggable dropped-note${note.outOfStaff ? " is-outside-staff" : ""}`}
                     data-duration={note.duration}
                     style={{
                       left: `${note.x ?? note.beat * NOTE_STEP}px`,
@@ -622,6 +676,14 @@ export default function ComposerApp() {
                     }}
                   >
                     <Note duration={note.duration} />
+                    {note.ledgerLineOffsets?.map((offset, index) => (
+                      <span
+                        key={`${note.id}-ledger-${index}`}
+                        className="ledger-line"
+                        style={{ top: `${offset}px` }}
+                        aria-hidden="true"
+                      />
+                    ))}
                   </div>
                 ))}
               </div>
