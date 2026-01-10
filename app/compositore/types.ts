@@ -8,6 +8,7 @@ export interface NoteModel {
   x?: number;
   y?: number;
   staffSlot?: number;
+  outOfStaff?: boolean;
 }
 
 export type Note = {
