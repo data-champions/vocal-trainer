@@ -23,6 +23,12 @@
   --clef-top: calc(var(--clef-anchor-y) - 0.45 * var(--clef-height));
   --clef-bottom: calc(var(--clef-top) + var(--clef-height));
   --staff-area-height: max(var(--ledger-bottom), var(--clef-bottom));
+  --note-width: 60px;
+  --ledger-line-width: 18px;
+  --ledger-line-thickness: 2px;
+  --ledger-line-offset-x: calc(
+    (var(--note-width) - var(--ledger-line-width)) / 2
+  );
 }
 
 .page {
@@ -114,7 +120,7 @@
 }
 
 .note {
-  width: 40px;
+  width: var(--note-width);
   height: 80px;
   padding: 0;
   background: transparent;
@@ -225,4 +231,12 @@
 
 .dropzone-notes .note {
   position: absolute;
+}
+
+.ledger-line {
+  position: absolute;
+  left: var(--ledger-line-offset-x);
+  width: var(--ledger-line-width);
+  border-top: var(--ledger-line-thickness) solid currentColor;
+  pointer-events: none;
 }

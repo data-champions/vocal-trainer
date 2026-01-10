@@ -9,6 +9,7 @@ export interface NoteModel {
   y?: number;
   staffSlot?: number;
   outOfStaff?: boolean;
+  ledgerLineOffsets?: number[];
 }
 
 export type Note = {
