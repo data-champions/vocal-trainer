@@ -56,6 +56,18 @@ body {
   color: #e2e8f0;
 }
 
+.trash-dropzone {
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+}
+
+.trash-dropzone.trash-activated {
+  border-color: rgba(248, 113, 113, 0.8);
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+}
+
 .note {
   color: #e2e8f0;
 }

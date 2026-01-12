@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties
+} from "react";
 import interact from "interactjs";
 import { encodeWav } from "../../../lib/audio";
 import { GAP_SECONDS } from "../../../lib/constants";
@@ -322,10 +329,10 @@ export default function ComposerApp() {
   const clefSymbol = clef === "treble" ? "\uD834\uDD1E" : "\uD834\uDD22";
   const clefLabel = clef === "treble" ? "Chiave di violino" : "Chiave di basso";
   const paletteNotes: Array<Pick<NoteModel, "id" | "duration">> = [
-    { id: "palette-whole", duration: "whole" },
-    { id: "palette-half", duration: "half" },
+    { id: "palette-eighth", duration: "eighth" },
     { id: "palette-quarter", duration: "quarter" },
-    { id: "palette-eighth", duration: "eighth" }
+    { id: "palette-half", duration: "half" },
+    { id: "palette-whole", duration: "whole" }
   ];
   const idCounter = useRef(0);
   const [placedNotes, setPlacedNotes] = useState<NoteModel[]>([]);
@@ -569,10 +576,35 @@ export default function ComposerApp() {
         (event.target as HTMLElement | null)?.classList.add("drop-activated");
       });
 
+    interact(".trash-dropzone").dropzone({
+      accept: ".dropped-note",
+      overlap: "pointer",
+      ondragenter(event) {
+        (event.target as HTMLElement | null)?.classList.add("trash-activated");
+      },
+      ondragleave(event) {
+        (event.target as HTMLElement | null)?.classList.remove("trash-activated");
+      },
+      ondrop(event) {
+        const draggable = event.relatedTarget as HTMLElement | null;
+
+        if (!draggable) {
+          return;
+        }
+
+        setPlacedNotes((prev) =>
+          prev.filter((note) => note.id !== draggable.id)
+        );
+        draggable.setAttribute("data-drop-success", "true");
+        (event.target as HTMLElement | null)?.classList.remove("trash-activated");
+      }
+    });
+
     // optional cleanup
     return () => {
       interact(".draggable").unset();
       interact(".dropzone").unset();
+      interact(".trash-dropzone").unset();
     };
   }, [clef]);
 
@@ -628,15 +660,38 @@ export default function ComposerApp() {
         </div>
         <div className="palette-notes" aria-label="Note disponibili">
           {paletteNotes.map((note) => (
-            <div
-              key={note.id}
-              id={note.id}
-              className="note draggable palette-item"
-              data-duration={note.duration}
-              data-palette="true"
-            >
-              <Note duration={note.duration} />
-            </div>
+            <Fragment key={note.id}>
+              <div
+                id={note.id}
+                className="note draggable palette-item"
+                data-duration={note.duration}
+                data-palette="true"
+              >
+                <Note duration={note.duration} />
+              </div>
+              {note.duration === "whole" ? (
+                <div
+                  className="trash-dropzone"
+                  aria-label="Elimina nota"
+                  title="Trascina qui per eliminare"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0V4.5a2.25 2.25 0 0 0-2.25-2.25h-3a2.25 2.25 0 0 0-2.25 2.25v1.289m7.5 0a48.11 48.11 0 0 0-7.5 0"
+                    />
+                  </svg>
+                </div>
+              ) : null}
+            </Fragment>
           ))}
         </div>
       </div>
