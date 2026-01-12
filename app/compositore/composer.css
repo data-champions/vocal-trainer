@@ -61,7 +61,7 @@ body {
 }
 
 .dropped-note.is-outside-staff {
-  color: #000000;
+  color: #e2e8f0;
 }
 
 .dropzone {
