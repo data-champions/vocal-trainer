@@ -289,3 +289,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-height: 700px) {
+  .palette {
+    position: static;
+  }
+}
