@@ -10,8 +10,10 @@
     "dev": "next dev -p 8501 --hostname 0.0.0.0",
     "dev:turbo": "next dev -p 8501 --hostname 0.0.0.0 --turbo",
     "build": "next build",
+    "postbuild": "node scripts/normalize-next-env.cjs",
     "start": "next start",
     "lint": "eslint .",
+    "postdev": "node scripts/normalize-next-env.cjs",
     "test": "vitest run",
     "prepare": "husky install",
     "show_network_ip": "node ./scripts/dev-with-ip.js"

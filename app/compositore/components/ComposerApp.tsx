@@ -624,17 +624,19 @@ export default function ComposerApp() {
         >
           {isRenderingAudio ? "Preparazione..." : "Ascolta"}
         </button>
-        {paletteNotes.map((note) => (
-          <div
-            key={note.id}
-            id={note.id}
-            className="note draggable palette-item"
-            data-duration={note.duration}
-            data-palette="true"
-          >
-            <Note duration={note.duration} />
-          </div>
-        ))}
+        <div className="palette-notes" aria-label="Note disponibili">
+          {paletteNotes.map((note) => (
+            <div
+              key={note.id}
+              id={note.id}
+              className="note draggable palette-item"
+              data-duration={note.duration}
+              data-palette="true"
+            >
+              <Note duration={note.duration} />
+            </div>
+          ))}
+        </div>
       </div>
 
         {audioUrl ? (
