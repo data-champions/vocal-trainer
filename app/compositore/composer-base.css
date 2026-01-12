@@ -61,6 +61,13 @@
   z-index: 2;
 }
 
+.palette-notes {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
 .container {
   flex: 1;
   display: flex;
