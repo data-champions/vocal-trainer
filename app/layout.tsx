@@ -8,7 +8,7 @@ import { LoginButtons } from './components/LoginButtons';
 
 export const metadata: Metadata = {
   title: 'Voice Trainer 🎹',
-  description: 'Interactive vocal training tool recreated in Next.js',
+  description: 'Un\'app per cantare meglio e allenare l\'orecchio musicale',
   icons: {
     icon: [
       {
