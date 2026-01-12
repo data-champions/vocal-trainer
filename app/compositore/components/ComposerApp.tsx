@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties
+} from "react";
 import interact from "interactjs";
 import { encodeWav } from "../../../lib/audio";
 import { GAP_SECONDS } from "../../../lib/constants";
@@ -569,10 +576,35 @@ export default function ComposerApp() {
         (event.target as HTMLElement | null)?.classList.add("drop-activated");
       });
 
+    interact(".trash-dropzone").dropzone({
+      accept: ".dropped-note",
+      overlap: "pointer",
+      ondragenter(event) {
+        (event.target as HTMLElement | null)?.classList.add("trash-activated");
+      },
+      ondragleave(event) {
+        (event.target as HTMLElement | null)?.classList.remove("trash-activated");
+      },
+      ondrop(event) {
+        const draggable = event.relatedTarget as HTMLElement | null;
+
+        if (!draggable) {
+          return;
+        }
+
+        setPlacedNotes((prev) =>
+          prev.filter((note) => note.id !== draggable.id)
+        );
+        draggable.setAttribute("data-drop-success", "true");
+        (event.target as HTMLElement | null)?.classList.remove("trash-activated");
+      }
+    });
+
     // optional cleanup
     return () => {
       interact(".draggable").unset();
       interact(".dropzone").unset();
+      interact(".trash-dropzone").unset();
     };
   }, [clef]);
 
@@ -628,15 +660,34 @@ export default function ComposerApp() {
         </div>
         <div className="palette-notes" aria-label="Note disponibili">
           {paletteNotes.map((note) => (
-            <div
-              key={note.id}
-              id={note.id}
-              className="note draggable palette-item"
-              data-duration={note.duration}
-              data-palette="true"
-            >
-              <Note duration={note.duration} />
-            </div>
+            <Fragment key={note.id}>
+              <div
+                id={note.id}
+                className="note draggable palette-item"
+                data-duration={note.duration}
+                data-palette="true"
+              >
+                <Note duration={note.duration} />
+              </div>
+              {note.duration === "whole" ? (
+                <div
+                  className="trash-dropzone"
+                  aria-label="Elimina nota"
+                  title="Trascina qui per eliminare"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      d="M9 3h6l1 2h4v2h-2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7H4V5h4l1-2Zm-1 4v12h8V7H8Zm2 2h2v8h-2V9Zm4 0h2v8h-2V9Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </div>
+              ) : null}
+            </Fragment>
           ))}
         </div>
       </div>
