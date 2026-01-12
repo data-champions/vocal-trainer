@@ -322,10 +322,10 @@ export default function ComposerApp() {
   const clefSymbol = clef === "treble" ? "\uD834\uDD1E" : "\uD834\uDD22";
   const clefLabel = clef === "treble" ? "Chiave di violino" : "Chiave di basso";
   const paletteNotes: Array<Pick<NoteModel, "id" | "duration">> = [
-    { id: "palette-whole", duration: "whole" },
-    { id: "palette-half", duration: "half" },
+    { id: "palette-eighth", duration: "eighth" },
     { id: "palette-quarter", duration: "quarter" },
-    { id: "palette-eighth", duration: "eighth" }
+    { id: "palette-half", duration: "half" },
+    { id: "palette-whole", duration: "whole" }
   ];
   const idCounter = useRef(0);
   const [placedNotes, setPlacedNotes] = useState<NoteModel[]>([]);
