@@ -29,6 +29,9 @@
   --ledger-line-offset-x: calc(
     (var(--note-width) - var(--ledger-line-width)) / 2
   );
+  --composer-control-height: 52px;
+  --composer-control-radius: 0.75rem;
+  --composer-control-font-size: 0.95rem;
 }
 
 .page {
@@ -45,12 +48,9 @@
   position: sticky;
   top: 0;
   display: flex;
-  flex-wrap: wrap;
   gap: 0.75rem;
-  row-gap: 0.5rem;
-  align-items: center;
-  align-content: flex-start;
-  justify-content: flex-start;
+  flex-direction: column;
+  align-items: stretch;
   padding: 0.75rem;
   background: #ffffff;
   border: 1px solid #dbe2ea;
@@ -61,11 +61,24 @@
   z-index: 2;
 }
 
+.palette-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+.palette-controls > * {
+  width: 100%;
+}
+
 .palette-notes {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: nowrap;
+  width: 100%;
 }
 
 .container {
@@ -80,26 +93,37 @@
   align-items: center;
   padding: 0;
   margin: 0;
+  width: 100%;
 }
 
 .clef-toggle select {
   border: 1px solid #cbd5f5;
-  border-radius: 0.5rem;
-  padding: 0.2rem 0.45rem;
+  border-radius: var(--composer-control-radius);
+  padding: 0 0.75rem;
   background: #f8fafc;
   color: #1e293b;
-  font-size: 0.85rem;
+  font-size: var(--composer-control-font-size);
+  font-weight: 600;
+  height: var(--composer-control-height);
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .export-midi {
   border: 1px solid #94a3b8;
-  border-radius: 0.5rem;
-  padding: 0.35rem 0.75rem;
+  border-radius: var(--composer-control-radius);
+  padding: 0 0.75rem;
   background: #0f172a;
   color: #f8fafc;
   font-weight: 600;
   cursor: pointer;
+  height: var(--composer-control-height);
+  font-size: var(--composer-control-font-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .export-midi:disabled {
@@ -109,12 +133,18 @@
 
 .export-json {
   border: 1px solid #94a3b8;
-  border-radius: 0.5rem;
-  padding: 0.35rem 0.75rem;
+  border-radius: var(--composer-control-radius);
+  padding: 0 0.75rem;
   background: #1e293b;
   color: #f8fafc;
   font-weight: 600;
   cursor: pointer;
+  height: var(--composer-control-height);
+  font-size: var(--composer-control-font-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .export-json:disabled {
@@ -252,4 +282,10 @@
   width: var(--ledger-line-width);
   border-top: var(--ledger-line-thickness) solid currentColor;
   pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .palette-controls {
+    grid-template-columns: 1fr;
+  }
 }

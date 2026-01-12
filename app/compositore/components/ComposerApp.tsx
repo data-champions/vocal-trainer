@@ -597,33 +597,35 @@ export default function ComposerApp() {
         <h1>Crea esercizio</h1>
       </div>
       <div className="palette">
-        <div className="clef-toggle">
-          <select
-            value={clef}
-            onChange={(event) => setClef(event.target.value as "treble" | "bass")}
-            aria-label="Scegli chiave"
-            title="Scegli chiave"
+        <div className="palette-controls">
+          <div className="clef-toggle">
+            <select
+              value={clef}
+              onChange={(event) => setClef(event.target.value as "treble" | "bass")}
+              aria-label="Scegli chiave"
+              title="Scegli chiave"
+            >
+              <option value="treble">Violino</option>
+              <option value="bass">Basso</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            className="export-json"
+            onClick={handleSaveMelody}
+            disabled={!hasNotes}
           >
-            <option value="treble">Violino</option>
-            <option value="bass">Basso</option>
-          </select>
+            Salva melodia
+          </button>
+          <button
+            type="button"
+            className="export-midi"
+            onClick={handleListen}
+            disabled={!hasNotes || isRenderingAudio}
+          >
+            {isRenderingAudio ? "Preparazione..." : "Ascolta"}
+          </button>
         </div>
-        <button
-          type="button"
-          className="export-json"
-          onClick={handleSaveMelody}
-          disabled={!hasNotes}
-        >
-          Salva melodia
-        </button>
-        <button
-          type="button"
-          className="export-midi"
-          onClick={handleListen}
-          disabled={!hasNotes || isRenderingAudio}
-        >
-          {isRenderingAudio ? "Preparazione..." : "Ascolta"}
-        </button>
         <div className="palette-notes" aria-label="Note disponibili">
           {paletteNotes.map((note) => (
             <div
