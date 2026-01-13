@@ -19,38 +19,27 @@ export async function POST(request: NextRequest) {
 
   const client = await clientPromise;
   const db = client.db();
-  const invitation = await db
-    .collection('invitations')
-    .findOne({ token: invite });
-  if (!invitation) {
+  const teacher = await db
+    .collection('users')
+    .findOne({ inviteToken: invite, isTeacher: true });
+  if (!teacher) {
     return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
   }
-  if (invitation.revokedAt) {
-    return NextResponse.json({ error: 'Invite revoked' }, { status: 410 });
-  }
-  if (invitation.usedAt) {
-    return NextResponse.json({ error: 'Invite already used' }, { status: 409 });
-  }
-
   const studentId = new ObjectId(token.sub as string);
-  if (invitation.teacherId?.equals?.(studentId)) {
+  if ((teacher._id as ObjectId).equals(studentId)) {
     return NextResponse.json(
       { error: 'Cannot accept your own invite' },
       { status: 409 }
     );
   }
   await db.collection('students').updateOne(
-    { teacherId: invitation.teacherId, studentId },
-    { $setOnInsert: { teacherId: invitation.teacherId, studentId, createdAt: new Date() } },
+    { teacherId: teacher._id, studentId },
+    { $setOnInsert: { teacherId: teacher._id, studentId, createdAt: new Date() } },
     { upsert: true }
   );
   await db.collection('users').updateOne(
     { _id: studentId },
     { $set: { isTeacher: false } }
-  );
-  await db.collection('invitations').updateOne(
-    { _id: invitation._id },
-    { $set: { usedAt: new Date(), usedBy: studentId } }
   );
 
   return NextResponse.json({ ok: true });

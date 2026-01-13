@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <div className="site-shell">
             <header className="site-header">
               <Link className="home-link" href="/">
-                <h1 className="home-link__title">Cantami 🎹</h1>
+                <h1 className="home-link__title">Cantami🎹</h1>
               </Link>
               <LoginButtons />
             </header>
