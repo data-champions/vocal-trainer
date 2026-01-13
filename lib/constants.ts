@@ -53,6 +53,8 @@ export type VocalRangeKey =
   | 'baritone'
   | 'bass';
 
+export const DEFAULT_VOCAL_RANGE: VocalRangeKey = 'tenor';
+
 export const VOCAL_RANGES: Record<
   VocalRangeKey,
   VocalRange

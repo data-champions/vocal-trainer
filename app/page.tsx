@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   DEFAULT_NOTATION_MODE,
+  DEFAULT_VOCAL_RANGE,
   PITCH_CHART_HEIGHT,
   PITCH_LOG_INTERVAL_MS,
   VOCAL_RANGES,
@@ -28,8 +30,10 @@ import { PitchStatus } from './components/PitchStatus';
 import { PitchChart } from './components/PitchChart';
 
 export default function HomePage(): JSX.Element {
+  const { status } = useSession();
   const notationMode = DEFAULT_NOTATION_MODE;
-  const [vocalRange, setVocalRange] = useState<VocalRangeKey>('tenor');
+  const [vocalRange, setVocalRange] =
+    useState<VocalRangeKey>(DEFAULT_VOCAL_RANGE);
   const [selectedNote, setSelectedNote] = useState<PianoKey | ''>('');
   const [duration, setDuration] = useState(1);
   const [noteCount, setNoteCount] = useState(3);
@@ -44,6 +48,7 @@ export default function HomePage(): JSX.Element {
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const currentTargetFrequencyRef = useRef<number | null>(null);
   const currentTargetNoteRef = useRef<string>('');
+  const showRangeSelector = status === 'unauthenticated';
   const selectedRange = VOCAL_RANGES[vocalRange];
   const rangeBounds = useMemo(() => {
     const startIdx = noteIndex(selectedRange.min);
@@ -80,6 +85,29 @@ export default function HomePage(): JSX.Element {
     currentTargetFrequencyRef.current = null;
     currentTargetNoteRef.current = '';
   }, []);
+
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+    let isActive = true;
+    fetch('/api/users/vocal-range')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Load failed');
+        }
+        const data = (await response.json().catch(() => ({}))) as {
+          vocalRange?: VocalRangeKey;
+        };
+        if (isActive && data.vocalRange) {
+          setVocalRange(data.vocalRange);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isActive = false;
+    };
+  }, [status]);
 
   const {
     audioUrl,
@@ -370,14 +398,16 @@ export default function HomePage(): JSX.Element {
   return (
     <main id="home">
       <div className="card-grid">
-        <fieldset>
-          <legend>Impostazioni</legend>
-          <RangeSelector
-            vocalRange={vocalRange}
-            onChange={setVocalRange}
-            notationMode={notationMode}
-          />
-        </fieldset>
+        {showRangeSelector ? (
+          <fieldset>
+            <legend>Impostazioni</legend>
+            <RangeSelector
+              vocalRange={vocalRange}
+              onChange={setVocalRange}
+              notationMode={notationMode}
+            />
+          </fieldset>
+        ) : null}
 
         <SequenceControls
           selectedNote={selectedNote}
