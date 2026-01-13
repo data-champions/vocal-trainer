@@ -48,7 +48,6 @@ export type VocalRangeKey =
   | 'soprano'
   | 'mezzo-soprano'
   | 'contralto'
-  | 'countertenor'
   | 'tenor'
   | 'baritone'
   | 'bass';
