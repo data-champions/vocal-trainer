@@ -6,6 +6,26 @@ import { useSession } from 'next-auth/react';
 import { useUserRole } from '../../lib/hooks/useUserRole';
 import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
 
+const getInviteMessage = (inviteLink: string): string =>
+  `Ciao! Per usare cantami, clicca qui: ${inviteLink}`;
+
+const getWhatsAppShareUrl = (message: string): string => {
+  const encodedMessage = encodeURIComponent(message);
+  if (typeof navigator === 'undefined') {
+    return `https://wa.me/?text=${encodedMessage}`;
+  }
+  const userAgent = navigator.userAgent || '';
+  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+  if (isIOS) {
+    return `https://api.whatsapp.com/send?text=${encodedMessage}`;
+  }
+  if (isAndroid) {
+    return `https://wa.me/?text=${encodedMessage}`;
+  }
+  return `https://web.whatsapp.com/send?text=${encodedMessage}`;
+};
+
 export default function StudentsPage(): JSX.Element {
   const { data: session, status } = useSession();
   const email = session?.user?.email ?? null;
@@ -18,13 +38,9 @@ export default function StudentsPage(): JSX.Element {
       ? session.user.isTeacher
       : role === 'teacher';
   const [inviteLink, setInviteLink] = useState('');
-  const [showFullInvite, setShowFullInvite] = useState(false);
-  const [inviteStatus, setInviteStatus] = useState<'idle' | 'loading' | 'copied'>(
-    'idle'
-  );
-  const [invites, setInvites] = useState<
-    Array<{ id: string; inviteLink: string; createdAt: string | null }>
-  >([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showCopyNotice, setShowCopyNotice] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'loading'>('idle');
   const [students, setStudents] = useState<
     Array<{ id: string; name: string; email: string }>
   >([]);
@@ -40,60 +56,60 @@ export default function StudentsPage(): JSX.Element {
     setStudents(data.students ?? []);
   }, []);
 
-  const loadInvites = useCallback(async () => {
-    const response = await fetch('/api/invitations');
-    if (!response.ok) {
-      return;
-    }
-    const data = (await response.json()) as {
-      invitations: Array<{ id: string; inviteLink: string; createdAt: string | null }>;
-    };
-    setInvites(data.invitations ?? []);
-  }, []);
-
   const handleInvite = useCallback(async () => {
     setInviteStatus('loading');
-    const response = await fetch('/api/invitations', { method: 'POST' });
-    if (!response.ok) {
+    try {
+      const response = await fetch('/api/invitations', { method: 'POST' });
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json().catch(() => ({}))) as {
+        inviteLink?: string;
+      };
+      if (typeof data.inviteLink === 'string' && data.inviteLink) {
+        setInviteLink(data.inviteLink);
+        setShowCopyNotice(false);
+        setShowInviteModal(true);
+      }
+    } finally {
       setInviteStatus('idle');
-      return;
     }
-    const data = (await response.json()) as { inviteLink: string };
-    setInviteLink(data.inviteLink);
-    setShowFullInvite(false);
-    setInviteStatus('idle');
-    void loadInvites();
-  }, [loadInvites]);
+  }, []);
 
-  const handleCopy = useCallback(async () => {
+  const handleWhatsAppShare = useCallback(() => {
     if (!inviteLink) {
       return;
     }
-    await navigator.clipboard.writeText(inviteLink);
-    setInviteStatus('copied');
-    window.setTimeout(() => setInviteStatus('idle'), 1500);
+    const message = getInviteMessage(inviteLink);
+    void navigator.clipboard.writeText(message).catch(() => {});
+    const whatsappUrl = getWhatsAppShareUrl(message);
+    window.location.href = whatsappUrl;
   }, [inviteLink]);
 
-  const handleRevoke = useCallback(async (inviteId: string, link: string) => {
-    await fetch('/api/invitations/revoke', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inviteId }),
-    });
-    if (inviteLink === link) {
-      setInviteLink('');
-      setShowFullInvite(false);
+  const handleCopyForShare = useCallback(async () => {
+    if (!inviteLink) {
+      return;
     }
-    void loadInvites();
-  }, [inviteLink, loadInvites]);
+    const message = getInviteMessage(inviteLink);
+    try {
+      await navigator.clipboard.writeText(message);
+    } catch {
+    }
+    setShowCopyNotice(true);
+    window.setTimeout(() => setShowCopyNotice(false), 2500);
+  }, [inviteLink]);
+
+  const handleCloseInviteModal = useCallback(() => {
+    setShowInviteModal(false);
+    setShowCopyNotice(false);
+  }, []);
 
   useEffect(() => {
     if (status !== 'authenticated' || !isTeacher) {
       return;
     }
     void loadStudents();
-    void loadInvites();
-  }, [isTeacher, loadStudents, loadInvites, status]);
+  }, [isTeacher, loadStudents, status]);
 
   if (status === 'loading') {
     return (
@@ -140,59 +156,105 @@ export default function StudentsPage(): JSX.Element {
                   Invita nuovo studente
                 </button>
               </div>
-              {inviteLink ? (
-                <div className="invite-link-row">
-                  <input
-                    className="invite-link-input"
-                    type="text"
-                    readOnly
-                    value={
-                      showFullInvite
-                        ? inviteLink
-                        : `${inviteLink.slice(0, 24)}…${inviteLink.slice(-10)}`
-                    }
-                    aria-label="Link invito studente"
-                  />
-                  <div className="invite-link-actions">
+            </div>
+            {showInviteModal ? (
+              <div
+                className="invite-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="invite-modal-title"
+              >
+                <div
+                  className="invite-modal__backdrop"
+                  onClick={handleCloseInviteModal}
+                  aria-hidden="true"
+                />
+                <div className="invite-modal__content">
+                  <h3 id="invite-modal-title" className="invite-modal__title">
+                    Condividi invito
+                  </h3>
+                  <p className="invite-modal__subtitle">
+                    Scegli come inviare il link.
+                  </p>
+                  <div className="invite-modal__actions">
                     <button
                       type="button"
-                      className="invite-link-copy"
-                      onClick={handleCopy}
+                      className="invite-modal__action invite-modal__action--whatsapp"
+                      onClick={handleWhatsAppShare}
                     >
-                      {inviteStatus === 'copied' ? 'Copiato' : 'Copia'}
+                      <span className="invite-modal__icon" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          role="img"
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <path
+                            d="M7 4h10a5 5 0 0 1 5 5v6a5 5 0 0 1-5 5H9l-5 4v-4H7a5 5 0 0 1-5-5V9a5 5 0 0 1 5-5z"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M9.5 9.5c.4-1 .8-1 1.4-.4l1.1 1.1c.4.4.4 1 0 1.4l-.6.6c.6 1.1 1.5 2 2.6 2.6l.6-.6c.4-.4 1-.4 1.4 0l1.1 1.1c.6.6.6 1-.4 1.4-1.1.5-2.3.3-3.4-.4-1.6-1-3-2.4-4-4-0.7-1.1-0.9-2.3-0.4-3.4z"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span>WhatsApp</span>
                     </button>
                     <button
                       type="button"
-                      className="invite-link-copy"
-                      onClick={() => setShowFullInvite((prev) => !prev)}
+                      className="invite-modal__action invite-modal__action--copy"
+                      onClick={handleCopyForShare}
                     >
-                      {showFullInvite ? 'Nascondi' : 'Mostra'}
+                      <span className="invite-modal__icon" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          role="img"
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <path
+                            d="M7 3h8l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M15 3v5h5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span>Copia testo</span>
                     </button>
                   </div>
+                  {showCopyNotice ? (
+                    <p className="invite-modal__notice">
+                      ora puoi incollare questo messaggio su mail o altre
+                      piattaforme
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="invite-modal__close"
+                    onClick={handleCloseInviteModal}
+                  >
+                    Chiudi
+                  </button>
                 </div>
-              ) : null}
-              {invites.length > 0 ? (
-                <div className="invite-list">
-                  <p className="invite-list__title">Inviti attivi</p>
-                  <ul className="invite-list__items">
-                    {invites.map((invite) => (
-                      <li key={invite.id} className="invite-list__item">
-                        <span className="invite-list__link">
-                          {invite.inviteLink.slice(0, 28)}…{invite.inviteLink.slice(-10)}
-                        </span>
-                        <button
-                          type="button"
-                          className="invite-link-copy"
-                          onClick={() => handleRevoke(invite.id, invite.inviteLink)}
-                        >
-                          Revoca
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
             <p>
               Panoramica studenti e assegnazioni arriveranno qui (prossimamente).
             </p>

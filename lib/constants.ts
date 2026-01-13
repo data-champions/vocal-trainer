@@ -60,7 +60,6 @@ export const VOCAL_RANGES: Record<
   soprano: { label: 'Soprano', min: 'C4', max: 'A5' },
   'mezzo-soprano': { label: 'Mezzo-soprano', min: 'A3', max: 'F#5' },
   contralto: { label: 'Contralto', min: 'F3', max: 'D5' },
-  countertenor: { label: 'Countertenore', min: 'G3', max: 'E5' },
   tenor: { label: 'Tenore', min: 'C3', max: 'A4' },
   baritone: { label: 'Baritono', min: 'A2', max: 'F4' },
   bass: { label: 'Basso', min: 'F2', max: 'E4' },

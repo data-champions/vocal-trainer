@@ -28,20 +28,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const inviteToken = randomBytes(32).toString('hex');
   const client = await clientPromise;
   const db = client.db();
-  await db.collection('invitations').insertOne({
-    teacherId: new ObjectId(token.sub as string),
-    token: inviteToken,
-    createdAt: new Date(),
-  });
+  const teacherId = new ObjectId(token.sub as string);
+  const teacher = await db.collection('users').findOne(
+    { _id: teacherId },
+    { projection: { inviteToken: 1, inviteCreatedAt: 1 } }
+  );
+  let inviteToken =
+    typeof teacher?.inviteToken === 'string' ? teacher.inviteToken : '';
+  if (!inviteToken) {
+    inviteToken = randomBytes(32).toString('hex');
+    const now = new Date();
+    await db.collection('users').updateOne(
+      { _id: teacherId },
+      { $set: { inviteToken, inviteCreatedAt: now } }
+    );
+  } else if (!teacher?.inviteCreatedAt) {
+    await db.collection('users').updateOne(
+      { _id: teacherId },
+      { $set: { inviteCreatedAt: new Date() } }
+    );
+  }
 
   const baseUrl = getBaseUrl(request);
-  const inviteLink = `${baseUrl.replace(
-    /\/$/,
-    ''
-  )}/register?invite=${inviteToken}`;
+  const inviteLink = `${baseUrl.replace(/\/$/, '')}/register?invite=${inviteToken}`;
 
   return NextResponse.json({ inviteLink });
 }
@@ -64,19 +75,24 @@ export async function GET(request: NextRequest) {
   const client = await clientPromise;
   const db = client.db();
   const teacherId = new ObjectId(token.sub as string);
-  const invitations = await db
-    .collection('invitations')
-    .find({ teacherId, usedAt: { $exists: false }, revokedAt: { $exists: false } })
-    .sort({ createdAt: -1 })
-    .toArray();
+  const teacher = await db.collection('users').findOne(
+    { _id: teacherId },
+    { projection: { inviteToken: 1, inviteCreatedAt: 1 } }
+  );
 
   const baseUrl = getBaseUrl(request).replace(/\/$/, '');
-  const items = invitations.map((invite) => ({
-    id: invite._id.toString(),
-    token: invite.token as string,
-    createdAt: invite.createdAt ? new Date(invite.createdAt).toISOString() : null,
-    inviteLink: `${baseUrl}/register?invite=${invite.token}`,
-  }));
+  const items = teacher?.inviteToken
+    ? [
+        {
+          id: String(teacher.inviteToken),
+          token: String(teacher.inviteToken),
+          createdAt: teacher.inviteCreatedAt
+            ? new Date(teacher.inviteCreatedAt as string | number | Date).toISOString()
+            : null,
+          inviteLink: `${baseUrl}/register?invite=${teacher.inviteToken}`,
+        },
+      ]
+    : [];
 
   return NextResponse.json({ invitations: items });
 }
