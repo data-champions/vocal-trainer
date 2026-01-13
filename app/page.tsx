@@ -6,7 +6,6 @@ import {
   PITCH_CHART_HEIGHT,
   PITCH_LOG_INTERVAL_MS,
   VOCAL_RANGES,
-  type NotationMode,
   type VocalRangeKey,
 } from '../lib/constants';
 import {
@@ -22,7 +21,6 @@ import { getPitchAdvice } from '../lib/pitch';
 import { usePianoSequence } from '../lib/hooks/usePianoSequence';
 import { usePitchDetection } from '../lib/hooks/usePitchDetection';
 import { useEventListener, useRafLoop } from '../lib/hooks/common';
-import { NotationToggle } from './components/NotationToggle';
 import { RangeSelector } from './components/RangeSelector';
 import { SequenceControls } from './components/SequenceControls';
 import { PlaybackControls } from './components/PlaybackControls';
@@ -30,9 +28,7 @@ import { PitchStatus } from './components/PitchStatus';
 import { PitchChart } from './components/PitchChart';
 
 export default function HomePage(): JSX.Element {
-  const [notationMode, setNotationMode] = useState<NotationMode>(
-    DEFAULT_NOTATION_MODE
-  );
+  const notationMode = DEFAULT_NOTATION_MODE;
   const [vocalRange, setVocalRange] = useState<VocalRangeKey>('tenor');
   const [selectedNote, setSelectedNote] = useState<PianoKey | ''>('');
   const [duration, setDuration] = useState(1);
@@ -375,11 +371,7 @@ export default function HomePage(): JSX.Element {
     <main id="home">
       <div className="card-grid">
         <fieldset>
-          <legend>Impostazioni di notazione</legend>
-          <NotationToggle
-            notationMode={notationMode}
-            onChange={setNotationMode}
-          />
+          <legend>Impostazioni</legend>
           <RangeSelector
             vocalRange={vocalRange}
             onChange={setVocalRange}

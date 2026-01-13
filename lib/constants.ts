@@ -40,6 +40,7 @@ export const PIANO_RELEASE_SECONDS = 2.5;
 export const PITCH_LOG_INTERVAL_MS = 10;
 export const PITCH_CHART_HEIGHT = 180;
 
+// TODO notation can be set in english when needed. For now we keep only italian.
 export const NOTATION_MODES = ['italian', 'english'] as const;
 export type NotationMode = (typeof NOTATION_MODES)[number];
 export const DEFAULT_NOTATION_MODE: NotationMode = 'italian';
