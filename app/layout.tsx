@@ -20,8 +20,34 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const isDev = process.env.IS_DEV === 'true';
   return (
     <html lang="en">
+      <head>
+        {isDev ? null : (
+          <>
+            <script
+              defer
+              src="https://cloud.umami.is/script.js"
+              data-website-id="b4fb4185-8915-470c-8c54-bad1a3bc113e"
+            />
+            <script
+              async
+              src="https://www.googletagmanager.com/gtag/js?id=G-VS4KLF5VVB"
+            />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-VS4KLF5VVB');
+`,
+              }}
+            />
+          </>
+        )}
+      </head>
       <body>
         <Providers>
           <div className="site-shell">
