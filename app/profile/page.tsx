@@ -1,17 +1,86 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 // import { UserTabs } from '../components/UserTabs';
+import {
+  DEFAULT_NOTATION_MODE,
+  DEFAULT_VOCAL_RANGE,
+  type VocalRangeKey,
+} from '../../lib/constants';
+import { RangeSelector } from '../components/RangeSelector';
 
 export default function ProfilePage(): JSX.Element {
   const { data: session, status } = useSession();
   const isTeacher = session?.user?.isTeacher ?? false;
+  const [vocalRange, setVocalRange] =
+    useState<VocalRangeKey>(DEFAULT_VOCAL_RANGE);
+  const [rangeStatus, setRangeStatus] = useState<
+    'idle' | 'loading' | 'saving' | 'saved' | 'error'
+  >('idle');
+  const [rangeError, setRangeError] = useState('');
 
   const displayName = useMemo(() => {
     return session?.user?.name || session?.user?.email || 'Account';
   }, [session?.user?.email, session?.user?.name]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+    let isActive = true;
+    setRangeStatus('loading');
+    fetch('/api/users/vocal-range')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Load failed');
+        }
+        const data = (await response.json().catch(() => ({}))) as {
+          vocalRange?: VocalRangeKey;
+        };
+        if (isActive && data.vocalRange) {
+          setVocalRange(data.vocalRange);
+        }
+        if (isActive) {
+          setRangeStatus('idle');
+        }
+      })
+      .catch(() => {
+        if (!isActive) {
+          return;
+        }
+        setRangeStatus('error');
+        setRangeError('Impossibile caricare l\'estensione vocale.');
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [status]);
+
+  const handleVocalRangeChange = useCallback(
+    async (nextRange: VocalRangeKey) => {
+      setVocalRange(nextRange);
+      if (status !== 'authenticated') {
+        return;
+      }
+      setRangeStatus('saving');
+      setRangeError('');
+      const response = await fetch('/api/users/vocal-range', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vocalRange: nextRange }),
+      });
+      if (!response.ok) {
+        setRangeStatus('error');
+        setRangeError('Impossibile salvare l\'estensione vocale.');
+        return;
+      }
+      setRangeStatus('saved');
+      window.setTimeout(() => setRangeStatus('idle'), 1500);
+    },
+    [status]
+  );
 
   if (status === 'loading') {
     return (
@@ -75,6 +144,17 @@ export default function ProfilePage(): JSX.Element {
               </Link>
             </div>
           )}
+        </fieldset>
+        <fieldset>
+          <legend>Preferenze</legend>
+          <RangeSelector
+            vocalRange={vocalRange}
+            onChange={handleVocalRangeChange}
+            notationMode={DEFAULT_NOTATION_MODE}
+          />
+          {rangeStatus === 'saving' ? <p>Salvataggio...</p> : null}
+          {rangeStatus === 'saved' ? <p>Estensione vocale salvata.</p> : null}
+          {rangeStatus === 'error' ? <p>{rangeError}</p> : null}
         </fieldset>
       </div>
     </main>

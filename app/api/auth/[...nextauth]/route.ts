@@ -4,6 +4,7 @@ import GoogleProvider from 'next-auth/providers/google';
 import { MongoDBAdapter } from '@next-auth/mongodb-adapter';
 import clientPromise from '../../../../lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { DEFAULT_VOCAL_RANGE } from '../../../../lib/constants';
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -99,7 +100,7 @@ const authOptions: NextAuthOptions = {
       const db = client.db();
       await db.collection('users').updateOne(
         { _id: new ObjectId(user.id) },
-        { $setOnInsert: { isTeacher: true } }
+        { $setOnInsert: { isTeacher: true, vocalRange: DEFAULT_VOCAL_RANGE } }
       );
     },
   },
