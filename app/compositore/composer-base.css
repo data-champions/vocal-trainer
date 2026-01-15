@@ -191,6 +191,27 @@
   cursor: not-allowed;
 }
 
+.delete-pattern {
+  border: 1px solid #f87171;
+  border-radius: var(--composer-control-radius);
+  padding: 0 0.75rem;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 600;
+  cursor: pointer;
+  height: var(--composer-control-height);
+  font-size: var(--composer-control-font-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.delete-pattern:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .draggable {
   touch-action: none;
   user-select: none;

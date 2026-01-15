@@ -1,48 +1,151 @@
 'use client';
 
 import '../compositore/composer-base.css';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import ExerciseReplay from './ExerciseReplay';
-import { loadSavedExercises, type SavedExercise } from '../../lib/exercises';
+import ExerciseReplay, { type ReplayItem } from './ExerciseReplay';
+import type { AssignedExercise, Pattern } from '../../lib/types';
 
-export default function TeacherExercisesPage(): JSX.Element {
+export default function ExercisesPage(): JSX.Element {
   const { data: session, status } = useSession();
   const isTeacher = session?.user?.isTeacher ?? false;
-  const [exercises, setExercises] = useState<SavedExercise[]>([]);
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
-    null
+  const [patterns, setPatterns] = useState<Pattern[]>([]);
+  const [exercises, setExercises] = useState<AssignedExercise[]>([]);
+  const [selectedItemKey, setSelectedItemKey] = useState<string>('');
+  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'loaded'>(
+    'idle'
   );
-  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const loadExercises = () => {
-      const nextExercises = loadSavedExercises();
-      setExercises(nextExercises);
-      setIsLoaded(true);
-      setSelectedExerciseId((prev) => {
-        if (prev && nextExercises.some((exercise) => exercise.id === prev)) {
-          return prev;
+    if (status !== 'authenticated') {
+      return;
+    }
+    let isActive = true;
+    const loadData = async () => {
+      setLoadState('loading');
+      try {
+        const [patternResponse, exerciseResponse] = await Promise.all([
+          isTeacher ? fetch('/api/patterns') : Promise.resolve(null),
+          fetch('/api/exercises'),
+        ]);
+        if (!isActive) {
+          return;
         }
-        return nextExercises[0]?.id ?? null;
-      });
+        if (patternResponse?.ok) {
+          const data = (await patternResponse.json().catch(() => ({}))) as {
+            patterns?: Pattern[];
+          };
+          setPatterns(Array.isArray(data.patterns) ? data.patterns : []);
+        } else {
+          setPatterns([]);
+        }
+        if (exerciseResponse.ok) {
+          const data = (await exerciseResponse.json().catch(() => ({}))) as {
+            exercises?: AssignedExercise[];
+          };
+          setExercises(Array.isArray(data.exercises) ? data.exercises : []);
+        } else {
+          setExercises([]);
+        }
+      } catch {
+        if (isActive) {
+          setPatterns([]);
+          setExercises([]);
+        }
+      } finally {
+        if (isActive) {
+          setLoadState('loaded');
+        }
+      }
     };
-    loadExercises();
-    window.addEventListener('storage', loadExercises);
-    return () => {
-      window.removeEventListener('storage', loadExercises);
-    };
-  }, []);
 
-  const selectedExercise =
-    exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
+    void loadData();
+    return () => {
+      isActive = false;
+    };
+  }, [isTeacher, status]);
+
+  const patternItems = useMemo<ReplayItem[]>(
+    () =>
+      patterns.map((pattern) => ({
+        key: `pattern:${pattern.id}`,
+        title: pattern.name || 'Pattern',
+        score: pattern.score ?? null,
+      })),
+    [patterns]
+  );
+
+  const exerciseItems = useMemo<ReplayItem[]>(
+    () =>
+      exercises.map((exercise) => {
+        const message =
+          typeof exercise.message === 'string' ? exercise.message.trim() : '';
+        const emailLabel =
+          exercise.studentEmail && exercise.studentEmail.includes('@')
+            ? ` (${exercise.studentEmail})`
+            : '';
+        return {
+          key: `exercise:${exercise.id}`,
+          title: exercise.patternName || 'Pattern',
+          score: exercise.score ?? null,
+          message: message || undefined,
+          meta: isTeacher
+            ? `Studente: ${exercise.studentName}${emailLabel}`
+            : undefined,
+        };
+      }),
+    [exercises, isTeacher]
+  );
+
+  const patternOptions = useMemo(
+    () => patternItems.map((item) => ({ key: item.key, label: item.title })),
+    [patternItems]
+  );
+
+  const exerciseOptions = useMemo(
+    () =>
+      exercises.map((exercise) => {
+        const baseLabel = exercise.patternName || 'Pattern';
+        return {
+          key: `exercise:${exercise.id}`,
+          label: isTeacher
+            ? `${baseLabel} - ${exercise.studentName}`
+            : baseLabel,
+        };
+      }),
+    [exercises, isTeacher]
+  );
+
+  const availableItems = useMemo(
+    () =>
+      isTeacher
+        ? [...patternItems, ...exerciseItems]
+        : [...exerciseItems],
+    [exerciseItems, isTeacher, patternItems]
+  );
+
+  useEffect(() => {
+    if (availableItems.length === 0) {
+      setSelectedItemKey('');
+      return;
+    }
+    setSelectedItemKey((prev) => {
+      if (prev && availableItems.some((item) => item.key === prev)) {
+        return prev;
+      }
+      return availableItems[0]?.key ?? '';
+    });
+  }, [availableItems]);
+
+  const selectedItem =
+    availableItems.find((item) => item.key === selectedItemKey) ?? null;
 
   if (status === 'loading') {
     return (
       <main>
         <div className="page-header">
-          <h1>I miei esercizi</h1>
+          <h1>Esercizi</h1>
         </div>
         <p>Caricamento...</p>
       </main>
@@ -53,9 +156,9 @@ export default function TeacherExercisesPage(): JSX.Element {
     return (
       <main>
         <div className="page-header">
-          <h1>I miei esercizi</h1>
+          <h1>Esercizi</h1>
         </div>
-        <p>Accedi come insegnante per vedere e creare esercizi.</p>
+        <p>Accedi per vedere gli esercizi.</p>
       </main>
     );
   }
@@ -63,47 +166,55 @@ export default function TeacherExercisesPage(): JSX.Element {
   return (
     <main>
       <div className="page-header">
-        <h1>I miei esercizi</h1>
+        <h1>{isTeacher ? 'Esercizi' : 'I miei esercizi'}</h1>
       </div>
 
-      <fieldset>
-        <legend>Lista esercizi</legend>
-        {isTeacher ? (
-          exercises.length > 0 ? (
+      <div className="card-grid">
+        <fieldset>
+          <legend>Selezione</legend>
+          {loadState !== 'loaded' ? (
+            <p>Caricamento esercizi...</p>
+          ) : availableItems.length > 0 ? (
             <label className="stacked-label" htmlFor="exercise-select">
-              Esercizio
+              {isTeacher ? 'Pattern o esercizio' : 'Esercizio'}
               <select
                 id="exercise-select"
-                value={selectedExerciseId ?? ''}
-                onChange={(event) => setSelectedExerciseId(event.target.value)}
+                value={selectedItemKey}
+                onChange={(event) => setSelectedItemKey(event.target.value)}
               >
-                {exercises.map((exercise) => (
-                  <option key={exercise.id} value={exercise.id}>
-                    {exercise.title}
-                  </option>
-                ))}
+                {isTeacher && patternOptions.length > 0 ? (
+                  <optgroup label="Pattern">
+                    {patternOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {exerciseOptions.length > 0 ? (
+                  <optgroup label="Esercizi">
+                    {exerciseOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
             </label>
-          ) : (
+          ) : isTeacher ? (
             <p>
-              {isLoaded
-                ? 'Nessun esercizio salvato. Vai al '
-                : 'Caricamento esercizi...'}
-              {isLoaded ? (
-                <>
-                  <Link href="/compositore">compositore</Link> per crearne uno.
-                </>
-              ) : null}
+              Nessun pattern o esercizio disponibile. Vai al{' '}
+              <Link href="/compositore">compositore</Link> per creare un pattern
+              o a <Link href="/students">studenti</Link> per assegnarne uno.
             </p>
-          )
-        ) : (
-          <p>Questa sezione è riservata agli insegnanti.</p>
-        )}
-      </fieldset>
+          ) : (
+            <p>Nessun esercizio assegnato.</p>
+          )}
+        </fieldset>
+      </div>
 
-      {isTeacher && selectedExercise ? (
-        <ExerciseReplay exercise={selectedExercise} />
-      ) : null}
+      {selectedItem ? <ExerciseReplay item={selectedItem} /> : null}
     </main>
   );
 }

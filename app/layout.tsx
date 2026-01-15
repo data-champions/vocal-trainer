@@ -35,6 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               async
               src="https://www.googletagmanager.com/gtag/js?id=G-VS4KLF5VVB"
             />
+            {/* eslint-disable-next-line @next/next/next-script-for-ga */}
             <script
               dangerouslySetInnerHTML={{
                 __html: `
