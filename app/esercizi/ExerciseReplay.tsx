@@ -174,6 +174,24 @@ export default function ExerciseReplay({
     [exercise.score.metadata?.tempo]
   );
 
+  const displayScore = useMemo(() => {
+    if (!exercise.score || !Array.isArray(exercise.score.notes)) {
+      return exercise.score;
+    }
+    if (transpose === 0) {
+      return exercise.score;
+    }
+    const notes = exercise.score.notes.map((note) => {
+      const midi = parsePitchToMidi(note?.pitch);
+      if (midi == null) {
+        return note;
+      }
+      const pitch = midiToToneNote(midi + transpose);
+      return { ...note, pitch };
+    });
+    return { ...exercise.score, notes };
+  }, [exercise.score, transpose]);
+
   const preparedNotes = useMemo<PreparedNote[]>(() => {
     if (!Array.isArray(exercise.score.notes)) {
       return [];
@@ -500,7 +518,7 @@ export default function ExerciseReplay({
   return (
     <div>
       <h2>{exercise.title}</h2>
-      <ScoreViewer score={exercise.score} />
+      <ScoreViewer score={displayScore} />
 
       <PlaybackControls
         isPitchReady={isPitchReady}
