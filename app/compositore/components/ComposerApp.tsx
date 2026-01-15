@@ -13,6 +13,7 @@ import { encodeWav } from "../../../lib/audio";
 import { GAP_SECONDS } from "../../../lib/constants";
 import { NOTE_NAMES } from "../../../lib/notes";
 import { renderPianoMelody, type PianoNoteEvent } from "../../../lib/piano";
+import { saveExercise } from "../../../lib/exercises";
 import { Note } from "./Note";
 import type { NoteDuration, NoteModel } from "../types";
 
@@ -441,10 +442,8 @@ export default function ComposerApp() {
       },
       notes
     };
-
-    const json = JSON.stringify(payload, null, 2);
-    // TODO: Integrare il salvataggio nel DB quando l'endpoint è disponibile.
-    console.info("Melodia pronta per il salvataggio:", json);
+    saveExercise(trimmedName, payload);
+    window.alert("Esercizio salvato. Ora lo trovi in /esercizi.");
   };
 
   useEffect(() => {
