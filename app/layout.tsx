@@ -7,7 +7,7 @@ import { Navbar } from './components/Navbar';
 import { LoginButtons } from './components/LoginButtons';
 
 export const metadata: Metadata = {
-  title: 'Voice Trainer 🎹',
+  title: ' Cantami',
   description: 'Un\'app per cantare meglio e allenare l\'orecchio musicale',
   icons: {
     icon: [
@@ -53,7 +53,7 @@ gtag('config', 'G-VS4KLF5VVB');
           <div className="site-shell">
             <header className="site-header">
               <Link className="home-link" href="/">
-                <h1 className="home-link__title">Cantami🎹</h1>
+                <h1 className="home-link__title">🎹 Cantami</h1>
               </Link>
               <LoginButtons />
             </header>
