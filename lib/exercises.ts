@@ -91,3 +91,29 @@ export const saveExercise = (
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   return next;
 };
+
+export const updateExercise = (
+  id: string,
+  updates: { title?: string; score?: ExerciseScore }
+): SavedExercise[] => {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+  const current = loadSavedExercises();
+  const next = current.map((exercise) => {
+    if (exercise.id !== id) {
+      return exercise;
+    }
+    const nextTitle = updates.title ?? exercise.title;
+    const nextScore = updates.score
+      ? { ...updates.score, name: updates.score.name ?? nextTitle }
+      : { ...exercise.score, name: exercise.score.name ?? nextTitle };
+    return {
+      ...exercise,
+      title: nextTitle,
+      score: nextScore,
+    };
+  });
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  return next;
+};

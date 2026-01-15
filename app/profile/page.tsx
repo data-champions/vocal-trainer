@@ -139,7 +139,7 @@ export default function ProfilePage(): JSX.Element {
           </div>
           {isTeacher ? null : (
             <div className="profile-actions" aria-label="Azioni studente">
-              <Link className="profile-action-link" href="/my-exercises">
+              <Link className="profile-action-link" href="/esercizi">
                 I miei esercizi
               </Link>
             </div>

@@ -17,7 +17,7 @@ const teacherItems: NavItem[] = [
 ];
 
 const studentItems: NavItem[] = [
-  { label: 'I miei esercizi', href: '/my-exercises' },
+  { label: 'I miei esercizi', href: '/esercizi' },
   { label: 'Esercizi base', href: '/' },
 ];
 

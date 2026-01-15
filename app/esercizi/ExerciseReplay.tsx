@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { encodeWav } from "../../lib/audio";
 import {
@@ -22,9 +22,8 @@ import {
 import { getPitchAdvice } from "../../lib/pitch";
 import { renderPianoMelody, type PianoNoteEvent } from "../../lib/piano";
 import { usePitchDetection } from "../../lib/hooks/usePitchDetection";
-import { useLatestRef, useRafLoop } from "../../lib/hooks/common";
-import type { PlaybackSegment } from "../../lib/types";
-import type { SavedExercise } from "../../lib/exercises";
+import { useEventListener, useLatestRef, useRafLoop } from "../../lib/hooks/common";
+import type { PatternScore, PlaybackSegment } from "../../lib/types";
 import { PlaybackControls } from "../components/PlaybackControls";
 import { PitchChart } from "../components/PitchChart";
 import { PitchStatus } from "../components/PitchStatus";
@@ -64,6 +63,14 @@ const NOTE_TO_SEMITONE: Record<string, number> = {
 };
 
 const EMPTY_NOTE_LABEL = "\u2014";
+
+export type ReplayItem = {
+  key: string;
+  title: string;
+  score: PatternScore | null;
+  message?: string;
+  meta?: string;
+};
 
 type PreparedNote = {
   midi: number;
@@ -118,9 +125,9 @@ const normalizeTempo = (tempo: number | undefined) => {
 };
 
 export default function ExerciseReplay({
-  exercise
+  item
 }: {
-  exercise: SavedExercise;
+  item: ReplayItem;
 }) {
   const notationMode = DEFAULT_NOTATION_MODE;
   const { status } = useSession();
@@ -144,7 +151,7 @@ export default function ExerciseReplay({
 
   useEffect(() => {
     setTranspose(0);
-  }, [exercise.id]);
+  }, [item.key]);
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -170,15 +177,34 @@ export default function ExerciseReplay({
   }, [status]);
 
   const tempo = useMemo(
-    () => normalizeTempo(exercise.score.metadata?.tempo),
-    [exercise.score.metadata?.tempo]
+    () => normalizeTempo(item.score?.metadata?.tempo),
+    [item.score?.metadata?.tempo]
   );
 
+  const displayScore = useMemo(() => {
+    if (!item.score || !Array.isArray(item.score.notes)) {
+      return item.score;
+    }
+    if (transpose === 0) {
+      return item.score;
+    }
+    const notes = item.score.notes.map((note) => {
+      const midi = parsePitchToMidi(note?.pitch);
+      if (midi == null) {
+        return note;
+      }
+      const pitch = midiToToneNote(midi + transpose);
+      return { ...note, pitch };
+    });
+    return { ...item.score, notes };
+  }, [item.score, transpose]);
+
   const preparedNotes = useMemo<PreparedNote[]>(() => {
-    if (!Array.isArray(exercise.score.notes)) {
+    const notes = item.score?.notes;
+    if (!Array.isArray(notes)) {
       return [];
     }
-    return exercise.score.notes
+    return notes
       .map((note, index) => {
         const midi = parsePitchToMidi(note?.pitch);
         if (midi == null) {
@@ -192,7 +218,7 @@ export default function ExerciseReplay({
       })
       .filter((note): note is PreparedNote => Boolean(note))
       .sort((a, b) => a.start - b.start);
-  }, [exercise.score.notes]);
+  }, [item.score]);
 
   const midiBounds = useMemo(() => {
     if (preparedNotes.length === 0) {
@@ -270,6 +296,43 @@ export default function ExerciseReplay({
     }
     setTranspose((prev) => prev + direction);
   };
+
+  const pausePlayback = useCallback(() => {
+    const audioElement = audioElementRef.current;
+    if (audioElement && !audioElement.paused) {
+      audioElement.pause();
+    }
+  }, []);
+
+  useEventListener(
+    "keydown",
+    (event) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName ?? "";
+      const isEditable =
+        target?.isContentEditable ||
+        tagName === "INPUT" ||
+        tagName === "SELECT" ||
+        tagName === "TEXTAREA";
+      if (isEditable) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        handleHalfStep(1);
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        handleHalfStep(-1);
+      } else if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        pausePlayback();
+      }
+    },
+    typeof window !== "undefined" ? window : null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -499,8 +562,16 @@ export default function ExerciseReplay({
 
   return (
     <div>
-      <h2>{exercise.title}</h2>
-      <ScoreViewer score={exercise.score} />
+      <h2>{item.title}</h2>
+      {item.meta ? (
+        <p style={{ margin: "4px 0 0", opacity: 0.8 }}>{item.meta}</p>
+      ) : null}
+      {item.message ? (
+        <p style={{ margin: "8px 0 0", fontStyle: "italic" }}>
+          {item.message}
+        </p>
+      ) : null}
+      <ScoreViewer score={displayScore} />
 
       <PlaybackControls
         isPitchReady={isPitchReady}

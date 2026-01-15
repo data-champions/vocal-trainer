@@ -63,7 +63,7 @@
 
 .palette-controls {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.75rem;
   align-items: stretch;
   width: 100%;
@@ -134,6 +134,21 @@
   box-sizing: border-box;
 }
 
+.exercise-select select,
+.exercise-name-input {
+  border: 1px solid #cbd5f5;
+  border-radius: var(--composer-control-radius);
+  padding: 0 0.75rem;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: var(--composer-control-font-size);
+  font-weight: 600;
+  height: var(--composer-control-height);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .export-midi {
   border: 1px solid #94a3b8;
   border-radius: var(--composer-control-radius);
@@ -172,6 +187,27 @@
 }
 
 .export-json:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.delete-pattern {
+  border: 1px solid #f87171;
+  border-radius: var(--composer-control-radius);
+  padding: 0 0.75rem;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 600;
+  cursor: pointer;
+  height: var(--composer-control-height);
+  font-size: var(--composer-control-font-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.delete-pattern:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

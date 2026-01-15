@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-const teacherPaths = ['/esercizi', '/compositore', '/students'];
-const studentPaths = ['/my-exercises'];
+const teacherPaths = ['/compositore', '/students'];
+const sharedPaths = ['/esercizi'];
 
 function matchesPrefix(pathname: string, prefixes: string[]) {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -12,7 +12,7 @@ function matchesPrefix(pathname: string, prefixes: string[]) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (!matchesPrefix(pathname, [...teacherPaths, ...studentPaths])) {
+  if (!matchesPrefix(pathname, [...teacherPaths, ...sharedPaths])) {
     return NextResponse.next();
   }
 
@@ -30,15 +30,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (matchesPrefix(pathname, studentPaths) && isTeacher) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/profile';
-    return NextResponse.redirect(url);
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/esercizi/:path*', '/compositore/:path*', '/students/:path*', '/my-exercises/:path*'],
+  matcher: ['/esercizi/:path*', '/compositore/:path*', '/students/:path*'],
 };

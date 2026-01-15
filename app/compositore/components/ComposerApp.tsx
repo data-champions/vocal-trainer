@@ -4,6 +4,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties
@@ -13,7 +14,7 @@ import { encodeWav } from "../../../lib/audio";
 import { GAP_SECONDS } from "../../../lib/constants";
 import { NOTE_NAMES } from "../../../lib/notes";
 import { renderPianoMelody, type PianoNoteEvent } from "../../../lib/piano";
-import { saveExercise } from "../../../lib/exercises";
+import type { Pattern, PatternScore } from "../../../lib/types";
 import { Note } from "./Note";
 import type { NoteDuration, NoteModel } from "../types";
 
@@ -26,12 +27,39 @@ const NOTE_STEP = NOTE_WIDTH + NOTE_GAP;
 const PPQ = 480;
 const DEFAULT_TEMPO_MICROS = 500000;
 const SECONDS_PER_BEAT = DEFAULT_TEMPO_MICROS / 1_000_000;
+const STAFF_LINE_COUNT = 5;
+const STAFF_SLOT_COUNT = STAFF_LINE_COUNT * 2 - 1;
+const DEFAULT_SLOT_STEP = 8;
+const DEFAULT_STAFF_TOP = 52.8;
 const TREBLE_BASE_MIDI = 67; // G4
 const BASS_BASE_MIDI = 53; // F3
 const TREBLE_BASE_SLOT = LEDGER_SLOT_COUNT + 6; // G line (second from bottom)
 const BASS_BASE_SLOT = LEDGER_SLOT_COUNT + 2; // F line (second from top)
 const TREBLE_INTERVALS = [2, 2, 1, 2, 2, 1, 2]; // G A B C D E F G
 const BASS_INTERVALS = [2, 2, 2, 1, 2, 2, 1]; // F G A B C D E F
+
+const SYMBOL_TO_DURATION: Record<string, NoteDuration> = {
+  whole: "whole",
+  half: "half",
+  quarter: "quarter",
+  eighth: "eighth",
+  sixteenth: "sixteenth",
+  w: "whole",
+  h: "half",
+  q: "quarter",
+  "8": "eighth",
+  "16": "sixteenth"
+};
+
+const DIATONIC_INDEX: Record<string, number> = {
+  c: 0,
+  d: 1,
+  e: 2,
+  f: 3,
+  g: 4,
+  a: 5,
+  b: 6
+};
 
 const durationToBeats: Record<NoteDuration, number> = {
   whole: 4,
@@ -47,6 +75,82 @@ const durationToSymbol: Record<NoteDuration, string> = {
   quarter: "q",
   eighth: "8",
   sixteenth: "16"
+};
+
+const parsePitch = (pitch: string | null | undefined) => {
+  if (!pitch) {
+    return null;
+  }
+  const match = pitch.trim().toLowerCase().match(/^([a-g])([#b]?)(?:\/)?(-?\d+)$/);
+  if (!match) {
+    return null;
+  }
+  const letter = match[1];
+  const octave = Number(match[3]);
+  if (!Number.isFinite(octave) || !(letter in DIATONIC_INDEX)) {
+    return null;
+  }
+  return { letter, octave };
+};
+
+const getStaffSlotFromPitch = (
+  pitch: string | undefined,
+  clef: "treble" | "bass"
+) => {
+  const parsed = parsePitch(pitch);
+  const base =
+    clef === "bass"
+      ? { letter: "f", octave: 3, slot: BASS_BASE_SLOT }
+      : { letter: "g", octave: 4, slot: TREBLE_BASE_SLOT };
+
+  if (!parsed) {
+    return base.slot;
+  }
+
+  const baseIndex = base.octave * 7 + DIATONIC_INDEX[base.letter];
+  const targetIndex = parsed.octave * 7 + DIATONIC_INDEX[parsed.letter];
+  const steps = targetIndex - baseIndex;
+
+  return base.slot - steps;
+};
+
+const parseDuration = (value: string | undefined): NoteDuration => {
+  const key = (value ?? "").toLowerCase();
+  return SYMBOL_TO_DURATION[key] ?? "quarter";
+};
+
+const parseStart = (value: number | undefined, fallback: number) => {
+  const start = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(start) ? start : fallback;
+};
+
+const getLedgerLineOffsets = (slot: number, slotStep: number) => {
+  const offsets: number[] = [];
+  const staffSlotStart = LEDGER_SLOT_COUNT;
+  const staffSlotEnd = staffSlotStart + STAFF_SLOT_COUNT - 1;
+
+  if (slot < staffSlotStart) {
+    const distanceSlots = staffSlotStart - slot;
+    const ledgerLineCount = Math.floor(distanceSlots / 2);
+    for (let i = 1; i <= ledgerLineCount; i += 1) {
+      const lineSlot = staffSlotStart - 2 * i;
+      offsets.push((lineSlot - slot) * slotStep + NOTE_HEAD_OFFSET_Y);
+    }
+  } else if (slot > staffSlotEnd) {
+    const distanceSlots = slot - staffSlotEnd;
+    const ledgerLineCount = Math.floor(distanceSlots / 2);
+    for (let i = 1; i <= ledgerLineCount; i += 1) {
+      const lineSlot = staffSlotEnd + 2 * i;
+      offsets.push((lineSlot - slot) * slotStep + NOTE_HEAD_OFFSET_Y);
+    }
+  }
+
+  return offsets;
+};
+
+const readCssNumber = (value: string, fallback: number) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 };
 
 const midiToPitch = (midi: number) => {
@@ -336,12 +440,150 @@ export default function ComposerApp() {
     { id: "palette-whole", duration: "whole" }
   ];
   const idCounter = useRef(0);
+  const [patternName, setPatternName] = useState("");
+  const [patterns, setPatterns] = useState<Pattern[]>([]);
+  const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
+  const staffRef = useRef<HTMLDivElement | null>(null);
+  const [layout, setLayout] = useState({
+    slotStep: DEFAULT_SLOT_STEP,
+    staffTop: DEFAULT_STAFF_TOP
+  });
   const [placedNotes, setPlacedNotes] = useState<NoteModel[]>([]);
   const hasNotes = placedNotes.length > 0;
+  const hasPatternName = patternName.trim().length > 0;
+  const selectedPattern = useMemo(
+    () => patterns.find((pattern) => pattern.id === selectedPatternId),
+    [patterns, selectedPatternId]
+  );
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isRenderingAudio, setIsRenderingAudio] = useState(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoplayRef = useRef(false);
+
+  useEffect(() => {
+    const updateLayout = () => {
+      const staffEl = staffRef.current;
+      if (!staffEl) {
+        return;
+      }
+      const styles = getComputedStyle(staffEl);
+      const slotStep = readCssNumber(
+        styles.getPropertyValue("--slot-step"),
+        DEFAULT_SLOT_STEP
+      );
+      const staffTop = readCssNumber(
+        styles.getPropertyValue("--staff-top"),
+        DEFAULT_STAFF_TOP
+      );
+      setLayout({ slotStep, staffTop });
+    };
+
+    updateLayout();
+    window.addEventListener("resize", updateLayout);
+    return () => window.removeEventListener("resize", updateLayout);
+  }, []);
+
+  const buildPlacedNotesFromScore = useCallback(
+    (
+      score: PatternScore | null,
+      targetClef: "treble" | "bass"
+    ): NoteModel[] => {
+      if (!score || !Array.isArray(score.notes)) {
+        return [];
+      }
+      const staffSlotStart = LEDGER_SLOT_COUNT;
+      const staffSlotEnd = staffSlotStart + STAFF_SLOT_COUNT - 1;
+      const orderedNotes = [...score.notes].sort((a, b) => {
+        const startA = parseStart(a?.start, 0);
+        const startB = parseStart(b?.start, 0);
+        return startA - startB;
+      });
+
+      idCounter.current = 0;
+      return orderedNotes.map((note, index) => {
+        const duration = parseDuration(note?.duration);
+        const start = parseStart(note?.start, index);
+        const staffSlot = getStaffSlotFromPitch(note?.pitch, targetClef);
+        const midi = midiFromStaffSlot(staffSlot, targetClef);
+        const x = Math.max(0, start * NOTE_STEP);
+        const y =
+          layout.staffTop +
+          (staffSlot - LEDGER_SLOT_COUNT) * layout.slotStep -
+          NOTE_HEAD_OFFSET_Y;
+        const outOfStaff =
+          staffSlot < staffSlotStart || staffSlot > staffSlotEnd;
+        const ledgerLineOffsets = getLedgerLineOffsets(
+          staffSlot,
+          layout.slotStep
+        );
+
+        return {
+          id: `note-${idCounter.current++}`,
+          duration,
+          midi,
+          beat: start,
+          x,
+          y,
+          staffSlot,
+          outOfStaff,
+          ledgerLineOffsets
+        };
+      });
+    },
+    [layout.slotStep, layout.staffTop]
+  );
+
+  const applyPattern = useCallback(
+    (pattern: Pattern | null) => {
+      if (!pattern) {
+        setPatternName("");
+        setPlacedNotes([]);
+        setAudioUrl(null);
+        setIsRenderingAudio(false);
+        idCounter.current = 0;
+        return;
+      }
+      const nextClef =
+        pattern.score?.metadata?.clef === "bass" ? "bass" : "treble";
+      setClef(nextClef);
+      setPatternName(pattern.name);
+      setPlacedNotes(buildPlacedNotesFromScore(pattern.score, nextClef));
+      setAudioUrl(null);
+      setIsRenderingAudio(false);
+    },
+    [buildPlacedNotesFromScore]
+  );
+
+  const refreshPatterns = useCallback(
+    async (preferredId?: string | null) => {
+      const response = await fetch("/api/patterns");
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json().catch(() => ({}))) as {
+        patterns?: Pattern[];
+      };
+      const nextPatterns = Array.isArray(data.patterns) ? data.patterns : [];
+      setPatterns(nextPatterns);
+      setSelectedPatternId((prev) => {
+        const candidateId = preferredId ?? prev;
+        const nextId =
+          candidateId && nextPatterns.some((pattern) => pattern.id === candidateId)
+            ? candidateId
+            : nextPatterns[0]?.id ?? null;
+        const nextPattern = nextId
+          ? nextPatterns.find((pattern) => pattern.id === nextId) ?? null
+          : null;
+        applyPattern(nextPattern);
+        return nextId;
+      });
+    },
+    [applyPattern]
+  );
+
+  useEffect(() => {
+    void refreshPatterns();
+  }, [refreshPatterns]);
 
   const handleExportMidi = () => {
     if (!hasNotes) {
@@ -360,6 +602,23 @@ export default function ComposerApp() {
     link.remove();
     URL.revokeObjectURL(url);
   };
+
+  const handleSelectPattern = useCallback(
+    (patternId: string) => {
+      if (!patternId) {
+        setSelectedPatternId(null);
+        applyPattern(null);
+        return;
+      }
+      const pattern = patterns.find((item) => item.id === patternId) ?? null;
+      if (!pattern) {
+        return;
+      }
+      setSelectedPatternId(pattern.id);
+      applyPattern(pattern);
+    },
+    [applyPattern, patterns]
+  );
 
   const handleListen = useCallback(async () => {
     if (!hasNotes) {
@@ -399,18 +658,14 @@ export default function ComposerApp() {
     }
   }, [hasNotes, placedNotes]);
 
-  const handleSaveMelody = () => {
+  const handleSaveMelody = async () => {
     if (!hasNotes) {
       alert("Non ci sono note da salvare.");
       return;
     }
-
-    const exerciseName = window.prompt("Nome dell'esercizio:");
-    if (!exerciseName) {
-      return;
-    }
-    const trimmedName = exerciseName.trim();
+    const trimmedName = patternName.trim();
     if (!trimmedName) {
+      alert("Inserisci un nome per il pattern.");
       return;
     }
 
@@ -432,7 +687,7 @@ export default function ComposerApp() {
       currentBeat += durationBeats;
     });
 
-    const payload = {
+    const payload: PatternScore = {
       name: trimmedName,
       metadata: {
         tempo: 120,
@@ -442,8 +697,89 @@ export default function ComposerApp() {
       },
       notes
     };
-    saveExercise(trimmedName, payload);
-    window.alert("Esercizio salvato. Ora lo trovi in /esercizi.");
+    const saveNewPattern = async (): Promise<boolean> => {
+      const response = await fetch("/api/patterns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmedName, score: payload })
+      });
+      if (!response.ok) {
+        window.alert("Errore nel salvataggio del pattern.");
+        return false;
+      }
+      const data = (await response.json().catch(() => ({}))) as {
+        pattern?: Pattern;
+      };
+      const createdId = data.pattern?.id ?? null;
+      await refreshPatterns(createdId);
+      return true;
+    };
+
+    const updatePattern = async (patternId: string): Promise<boolean> => {
+      const response = await fetch(`/api/patterns/${patternId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmedName, score: payload })
+      });
+      if (!response.ok) {
+        window.alert("Errore nel salvataggio del pattern.");
+        return false;
+      }
+      await refreshPatterns(patternId);
+      return true;
+    };
+
+    if (selectedPattern && selectedPatternId) {
+      if (selectedPattern.name !== trimmedName) {
+        const renameExisting = window.confirm(
+          "Hai cambiato il nome. Vuoi rinominare il pattern esistente?\nOK = rinomina, Annulla = crea un nuovo pattern."
+        );
+        if (renameExisting) {
+          const updated = await updatePattern(selectedPatternId);
+          if (updated) {
+            window.alert("Pattern rinominato e salvato.");
+          }
+          return;
+        }
+        const created = await saveNewPattern();
+        if (created) {
+          window.alert("Nuovo pattern creato.");
+        }
+        return;
+      }
+      const updated = await updatePattern(selectedPatternId);
+      if (updated) {
+        window.alert("Pattern salvato.");
+      }
+      return;
+    }
+
+    const created = await saveNewPattern();
+    if (created) {
+      window.alert("Pattern salvato. Ora lo trovi in /esercizi.");
+    }
+  };
+
+  const handleDeletePattern = async () => {
+    if (!selectedPatternId || !selectedPattern) {
+      window.alert("Seleziona un pattern da eliminare.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Vuoi eliminare il pattern "${selectedPattern.name}"?`
+    );
+    if (!confirmed) {
+      return;
+    }
+    const response = await fetch(`/api/patterns/${selectedPatternId}`, {
+      method: "DELETE"
+    });
+    if (!response.ok) {
+      window.alert("Errore nell'eliminazione del pattern.");
+      return;
+    }
+    await refreshPatterns(null);
+    window.alert("Pattern eliminato.");
   };
 
   useEffect(() => {
@@ -629,6 +965,29 @@ export default function ComposerApp() {
       </div>
       <div className="palette">
         <div className="palette-controls">
+          <div className="exercise-select">
+            <select
+              value={selectedPatternId ?? ""}
+              onChange={(event) => handleSelectPattern(event.target.value)}
+              aria-label="Seleziona pattern"
+              title="Seleziona pattern"
+            >
+              <option value="">Nuovo pattern</option>
+              {patterns.map((pattern) => (
+                <option key={pattern.id} value={pattern.id}>
+                  {pattern.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <input
+            type="text"
+            className="exercise-name-input"
+            value={patternName}
+            onChange={(event) => setPatternName(event.target.value)}
+            placeholder="Nome pattern"
+            aria-label="Nome pattern"
+          />
           <div className="clef-toggle">
             <select
               value={clef}
@@ -644,9 +1003,17 @@ export default function ComposerApp() {
             type="button"
             className="export-json"
             onClick={handleSaveMelody}
-            disabled={!hasNotes}
+            disabled={!hasNotes || !hasPatternName}
           >
-            Salva melodia
+            Salva pattern
+          </button>
+          <button
+            type="button"
+            className="delete-pattern"
+            onClick={handleDeletePattern}
+            disabled={!selectedPatternId}
+          >
+            Elimina pattern
           </button>
           <button
             type="button"
@@ -710,7 +1077,7 @@ export default function ComposerApp() {
         <div id="drop-target" className="dropzone">
           <div className="dropzone-label">{clefLabel}</div>
           <div className="staff">
-            <div className="staff-area" style={clefAnchorStyle}>
+            <div className="staff-area" style={clefAnchorStyle} ref={staffRef}>
               <div className="staff-clef" aria-hidden="true">
                 {clefSymbol}
               </div>

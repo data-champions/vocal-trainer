@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 // import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
 import { getAllowedRoles, getDefaultRoleForEmail } from '../../lib/userRole';
+import type { AssignedExercise, Pattern } from '../../lib/types';
 
 const getInviteMessage = (inviteLink: string): string =>
   `Ciao! Per usare cantami, clicca qui: ${inviteLink}`;
@@ -44,6 +45,14 @@ export default function StudentsPage(): JSX.Element {
   const [students, setStudents] = useState<
     Array<{ id: string; name: string; email: string }>
   >([]);
+  const [patterns, setPatterns] = useState<Pattern[]>([]);
+  const [exercises, setExercises] = useState<AssignedExercise[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedPatternId, setSelectedPatternId] = useState('');
+  const [assignmentMessage, setAssignmentMessage] = useState('');
+  const [assignmentStatus, setAssignmentStatus] = useState<'idle' | 'loading'>(
+    'idle'
+  );
 
   const loadStudents = useCallback(async () => {
     const response = await fetch('/api/students');
@@ -53,7 +62,43 @@ export default function StudentsPage(): JSX.Element {
     const data = (await response.json()) as {
       students: Array<{ id: string; name: string; email: string }>;
     };
-    setStudents(data.students ?? []);
+    const nextStudents = data.students ?? [];
+    setStudents(nextStudents);
+    setSelectedStudentId((prev) => {
+      if (prev && nextStudents.some((student) => student.id === prev)) {
+        return prev;
+      }
+      return nextStudents[0]?.id ?? '';
+    });
+  }, []);
+
+  const loadPatterns = useCallback(async () => {
+    const response = await fetch('/api/patterns');
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json().catch(() => ({}))) as {
+      patterns?: Pattern[];
+    };
+    const nextPatterns = Array.isArray(data.patterns) ? data.patterns : [];
+    setPatterns(nextPatterns);
+    setSelectedPatternId((prev) => {
+      if (prev && nextPatterns.some((pattern) => pattern.id === prev)) {
+        return prev;
+      }
+      return nextPatterns[0]?.id ?? '';
+    });
+  }, []);
+
+  const loadExercises = useCallback(async () => {
+    const response = await fetch('/api/exercises');
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json().catch(() => ({}))) as {
+      exercises?: AssignedExercise[];
+    };
+    setExercises(Array.isArray(data.exercises) ? data.exercises : []);
   }, []);
 
   const handleInvite = useCallback(async () => {
@@ -75,6 +120,62 @@ export default function StudentsPage(): JSX.Element {
       setInviteStatus('idle');
     }
   }, []);
+
+  const handleAssignExercise = useCallback(async () => {
+    if (!selectedStudentId) {
+      window.alert('Seleziona uno studente.');
+      return;
+    }
+    if (!selectedPatternId) {
+      window.alert('Seleziona un pattern.');
+      return;
+    }
+    setAssignmentStatus('loading');
+    try {
+      const response = await fetch('/api/exercises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: selectedStudentId,
+          patternId: selectedPatternId,
+          message: assignmentMessage,
+        }),
+      });
+      if (!response.ok) {
+        window.alert('Errore nell\'assegnazione dell\'esercizio.');
+        return;
+      }
+      setAssignmentMessage('');
+      await loadExercises();
+    } finally {
+      setAssignmentStatus('idle');
+    }
+  }, [
+    assignmentMessage,
+    loadExercises,
+    selectedPatternId,
+    selectedStudentId,
+  ]);
+
+  const handleRemoveExercise = useCallback(
+    async (exerciseId: string) => {
+      const confirmed = window.confirm(
+        'Vuoi rimuovere questo esercizio dallo studente?'
+      );
+      if (!confirmed) {
+        return;
+      }
+      const response = await fetch(`/api/exercises/${exerciseId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        window.alert('Errore nella rimozione dell\'esercizio.');
+        return;
+      }
+      await loadExercises();
+    },
+    [loadExercises]
+  );
 
   const handleWhatsAppShare = useCallback(() => {
     if (!inviteLink) {
@@ -109,7 +210,9 @@ export default function StudentsPage(): JSX.Element {
       return;
     }
     void loadStudents();
-  }, [isTeacher, loadStudents, status]);
+    void loadPatterns();
+    void loadExercises();
+  }, [isTeacher, loadExercises, loadPatterns, loadStudents, status]);
 
   if (status === 'loading') {
     return (
@@ -255,21 +358,128 @@ export default function StudentsPage(): JSX.Element {
                 </div>
               </div>
             ) : null}
-            <p>
-              Panoramica studenti e assegnazioni arriveranno qui (prossimamente).
-            </p>
-            {students.length > 0 ? (
-              <ul className="student-list">
-                {students.map((student) => (
-                  <li key={student.id} className="student-list__item">
-                    <span className="student-list__name">{student.name}</span>
-                    <span className="student-list__email">{student.email}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>Nessuno studente assegnato.</p>
-            )}
+            <div style={{ marginTop: '20px' }}>
+              <h3 style={{ margin: '0 0 12px' }}>Assegna esercizio</h3>
+              {students.length === 0 ? (
+                <p>Nessuno studente assegnato.</p>
+              ) : patterns.length === 0 ? (
+                <p>
+                  Nessun pattern disponibile. Crea un pattern nel compositore.
+                </p>
+              ) : (
+                <>
+                  <label htmlFor="student-select">
+                    Studente
+                    <select
+                      id="student-select"
+                      value={selectedStudentId}
+                      onChange={(event) =>
+                        setSelectedStudentId(event.target.value)
+                      }
+                    >
+                      {students.map((student) => (
+                        <option key={student.id} value={student.id}>
+                          {student.name} ({student.email})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label htmlFor="pattern-select">
+                    Pattern
+                    <select
+                      id="pattern-select"
+                      value={selectedPatternId}
+                      onChange={(event) =>
+                        setSelectedPatternId(event.target.value)
+                      }
+                    >
+                      {patterns.map((pattern) => (
+                        <option key={pattern.id} value={pattern.id}>
+                          {pattern.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label htmlFor="assignment-message">
+                    Messaggio
+                    <input
+                      id="assignment-message"
+                      type="text"
+                      value={assignmentMessage}
+                      onChange={(event) =>
+                        setAssignmentMessage(event.target.value)
+                      }
+                      placeholder="Messaggio per lo studente"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="page-action-button"
+                    onClick={handleAssignExercise}
+                    disabled={assignmentStatus === 'loading'}
+                  >
+                    {assignmentStatus === 'loading'
+                      ? 'Assegnazione...'
+                      : 'Assegna esercizio'}
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ margin: '0 0 12px' }}>Esercizi assegnati</h3>
+              {exercises.length > 0 ? (
+                <ul className="exercise-list">
+                  {exercises.map((exercise) => (
+                    <li key={exercise.id} className="exercise-list__item">
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                        }}
+                      >
+                        <strong>{exercise.patternName}</strong>
+                        <span>
+                          Studente: {exercise.studentName} (
+                          {exercise.studentEmail})
+                        </span>
+                        {exercise.message ? (
+                          <span>Messaggio: {exercise.message}</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => handleRemoveExercise(exercise.id)}
+                        >
+                          Rimuovi
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Nessun esercizio assegnato.</p>
+              )}
+            </div>
+
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ margin: '0 0 12px' }}>Studenti</h3>
+              {students.length > 0 ? (
+                <ul className="student-list">
+                  {students.map((student) => (
+                    <li key={student.id} className="student-list__item">
+                      <span className="student-list__name">{student.name}</span>
+                      <span className="student-list__email">
+                        {student.email}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Nessuno studente assegnato.</p>
+              )}
+            </div>
           </>
         ) : isTeacherAllowed ? (
           <p>

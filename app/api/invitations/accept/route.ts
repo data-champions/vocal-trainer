@@ -32,6 +32,19 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+  const existingLink = await db
+    .collection('students')
+    .findOne({ studentId });
+  if (
+    existingLink &&
+    existingLink.teacherId &&
+    !(existingLink.teacherId as ObjectId).equals(teacher._id as ObjectId)
+  ) {
+    return NextResponse.json(
+      { error: 'Student already linked to another teacher' },
+      { status: 409 }
+    );
+  }
   await db.collection('students').updateOne(
     { teacherId: teacher._id, studentId },
     { $setOnInsert: { teacherId: teacher._id, studentId, createdAt: new Date() } },
