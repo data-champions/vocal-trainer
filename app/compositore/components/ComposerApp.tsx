@@ -313,6 +313,12 @@ type DropzoneMetrics = {
   staffSlotEnd: number;
 };
 
+type DropzonePreviewLine = {
+  offset: number;
+  kind: "staff" | "ledger";
+  x: number;
+};
+
 const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
   let candidate = x;
   const occupied = notes
@@ -399,12 +405,19 @@ const findNearestSlot = (dropY: number, slotPositions: number[]) => {
   return nearestSlot;
 };
 
-const areOffsetsEqual = (left: number[], right: number[]) => {
+const arePreviewLinesEqual = (
+  left: DropzonePreviewLine[],
+  right: DropzonePreviewLine[]
+) => {
   if (left.length !== right.length) {
     return false;
   }
   for (let i = 0; i < left.length; i += 1) {
-    if (left[i] !== right[i]) {
+    if (
+      left[i]?.offset !== right[i]?.offset ||
+      left[i]?.kind !== right[i]?.kind ||
+      left[i]?.x !== right[i]?.x
+    ) {
       return false;
     }
   }
@@ -479,25 +492,40 @@ const computeDropPlacement = (event: DropEvent) => {
   };
 };
 
-const computeDropHighlight = (event: DropEvent) => {
+const computeDropHighlight = (event: DropEvent): DropzonePreviewLine[] => {
   const metrics = getDropzoneMetrics(event);
   if (!metrics) {
     return [];
   }
 
-  const { notesRect, slotPositions, staffSlotStart } = metrics;
+  const { notesRect, slotPositions, staffSlotStart, staffSlotEnd } = metrics;
   const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
+  const dropX = (event.dragEvent?.clientX ?? notesRect.left) - notesRect.left;
   const nearestSlot = findNearestSlot(dropY, slotPositions);
   const slotDelta = Math.abs(nearestSlot - staffSlotStart);
   const isLineSlot = slotDelta % 2 === 0;
   const lineSlots = isLineSlot
     ? [nearestSlot]
     : [nearestSlot - 1, nearestSlot + 1];
+  const noteX = Math.max(
+    0,
+    Math.min(notesRect.width - NOTE_WIDTH, dropX - NOTE_HEAD_OFFSET_X)
+  );
 
   return lineSlots
     .filter((slot) => slot >= 0 && slot < slotPositions.length)
-    .map((slot) => slotPositions[slot] ?? 0)
-    .filter((value) => Number.isFinite(value));
+    .map((slot) => {
+      const offset = slotPositions[slot];
+      if (!Number.isFinite(offset)) {
+        return null;
+      }
+      return {
+        offset,
+        kind: slot >= staffSlotStart && slot <= staffSlotEnd ? "staff" : "ledger",
+        x: noteX
+      };
+    })
+    .filter((value): value is DropzonePreviewLine => value !== null);
 };
 
 export default function ComposerApp() {
@@ -534,6 +562,7 @@ export default function ComposerApp() {
   const [isRenderingAudio, setIsRenderingAudio] = useState(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoplayRef = useRef(false);
+  const [previewLines, setPreviewLines] = useState<DropzonePreviewLine[]>([]);
   const dropzoneWidth = useMemo(() => {
     const maxNoteX = placedNotes.reduce((max, note) => {
       const noteX = note.x ?? note.beat * NOTE_STEP;
@@ -994,7 +1023,20 @@ export default function ComposerApp() {
     interact(".dropzone")
       .dropzone({
         overlap: 1.0,
+        ondropmove(event) {
+          const nextPreview = computeDropHighlight(event);
+          setPreviewLines((prev) =>
+            arePreviewLinesEqual(prev, nextPreview) ? prev : nextPreview
+          );
+        },
+        ondragleave() {
+          setPreviewLines([]);
+        },
+        ondropdeactivate() {
+          setPreviewLines([]);
+        },
         ondrop(event) {
+          setPreviewLines([]);
           const draggable = event.relatedTarget as HTMLElement | null;
           const duration = (draggable?.dataset.duration as NoteDuration | undefined) || "quarter";
           const isPaletteItem = draggable?.dataset.palette === "true";
@@ -1241,6 +1283,17 @@ export default function ComposerApp() {
                   <span />
                 </div>
                 <div className="dropzone-notes">
+                  {previewLines.map((line, index) => (
+                    <span
+                      key={`preview-line-${line.kind}-${index}`}
+                      className={`dropzone-preview-line${line.kind === "ledger" ? " is-ledger" : ""}`}
+                      style={{
+                        top: `${line.offset}px`,
+                        ["--preview-note-x" as string]: `${line.x}px`
+                      }}
+                      aria-hidden="true"
+                    />
+                  ))}
                   {placedNotes.map((note) => (
                     <div
                       key={note.id}
