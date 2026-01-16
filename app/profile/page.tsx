@@ -1,6 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 // import { UserTabs } from '../components/UserTabs';
@@ -20,6 +26,13 @@ export default function ProfilePage(): JSX.Element {
     'idle' | 'loading' | 'saving' | 'saved' | 'error'
   >('idle');
   const [rangeError, setRangeError] = useState('');
+  const [teacherNameStatus, setTeacherNameStatus] = useState<
+    'idle' | 'loading' | 'saving' | 'saved' | 'error'
+  >('idle');
+  const [teacherNameError, setTeacherNameError] = useState('');
+  const [teacherName, setTeacherName] = useState('');
+  const [studentFacingName, setStudentFacingName] = useState('');
+  const [studentFacingNameInitial, setStudentFacingNameInitial] = useState('');
 
   const displayName = useMemo(() => {
     return session?.user?.name || session?.user?.email || 'Account';
@@ -58,6 +71,51 @@ export default function ProfilePage(): JSX.Element {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+    let isActive = true;
+    setTeacherNameStatus('loading');
+    setTeacherNameError('');
+    fetch('/api/users/teacher-display-name')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Load failed');
+        }
+        const data = (await response.json().catch(() => ({}))) as {
+          teacherName?: string;
+          studentDisplayName?: string;
+        };
+        if (!isActive) {
+          return;
+        }
+        if (isTeacher) {
+          const displayNameValue =
+            typeof data.studentDisplayName === 'string'
+              ? data.studentDisplayName
+              : '';
+          setStudentFacingName(displayNameValue);
+          setStudentFacingNameInitial(displayNameValue);
+        } else {
+          const resolvedTeacherName =
+            typeof data.teacherName === 'string' ? data.teacherName : '';
+          setTeacherName(resolvedTeacherName);
+        }
+        setTeacherNameStatus('idle');
+      })
+      .catch(() => {
+        if (!isActive) {
+          return;
+        }
+        setTeacherNameStatus('error');
+        setTeacherNameError('Impossibile caricare il nome dell\'insegnante.');
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [isTeacher, status]);
+
   const handleVocalRangeChange = useCallback(
     async (nextRange: VocalRangeKey) => {
       setVocalRange(nextRange);
@@ -81,6 +139,48 @@ export default function ProfilePage(): JSX.Element {
     },
     [status]
   );
+
+  const handleStudentFacingNameSave = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (status !== 'authenticated' || !isTeacher) {
+        return;
+      }
+      const trimmedName = studentFacingName.trim();
+      const trimmedInitial = studentFacingNameInitial.trim();
+      if (trimmedName === trimmedInitial || teacherNameStatus === 'saving') {
+        return;
+      }
+      setTeacherNameStatus('saving');
+      setTeacherNameError('');
+      const response = await fetch('/api/users/teacher-display-name', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentDisplayName: trimmedName }),
+      });
+      if (!response.ok) {
+        setTeacherNameStatus('error');
+        setTeacherNameError(
+          'Impossibile salvare il nome per gli studenti.'
+        );
+        return;
+      }
+      setStudentFacingName(trimmedName);
+      setStudentFacingNameInitial(trimmedName);
+      setTeacherNameStatus('saved');
+      window.setTimeout(() => setTeacherNameStatus('idle'), 1500);
+    },
+    [
+      isTeacher,
+      status,
+      studentFacingName,
+      studentFacingNameInitial,
+      teacherNameStatus,
+    ]
+  );
+
+  const isStudentFacingNameDirty =
+    studentFacingName.trim() !== studentFacingNameInitial.trim();
 
   if (status === 'loading') {
     return (
@@ -136,7 +236,64 @@ export default function ProfilePage(): JSX.Element {
                 {isTeacher ? 'Insegnante' : 'Studente'}
               </p>
             </div>
+            {isTeacher ? null : (
+              <div>
+                <p className="profile-label">Insegnante</p>
+                <p className="profile-value">
+                  {teacherNameStatus === 'loading'
+                    ? 'Caricamento...'
+                    : teacherNameStatus === 'error'
+                      ? teacherNameError
+                      : teacherName || 'Nessun insegnante collegato'}
+                </p>
+              </div>
+            )}
           </div>
+          {isTeacher ? (
+            <form
+              className="profile-form"
+              onSubmit={handleStudentFacingNameSave}
+            >
+              <label htmlFor="student-facing-name">
+                Nome (per i tuoi studenti)
+                <input
+                  id="student-facing-name"
+                  type="text"
+                  className="profile-input"
+                  value={studentFacingName}
+                  onChange={(event) => setStudentFacingName(event.target.value)}
+                  placeholder={displayName}
+                  maxLength={80}
+                  disabled={
+                    teacherNameStatus === 'loading' ||
+                    teacherNameStatus === 'saving'
+                  }
+                />
+              </label>
+              <div className="profile-form-actions">
+                <button
+                  type="submit"
+                  className="text-button"
+                  disabled={
+                    teacherNameStatus === 'loading' ||
+                    teacherNameStatus === 'saving' ||
+                    !isStudentFacingNameDirty
+                  }
+                >
+                  {teacherNameStatus === 'saving'
+                    ? 'Salvataggio...'
+                    : 'Salva nome'}
+                </button>
+              </div>
+              {teacherNameStatus === 'loading' ? (
+                <p>Caricamento...</p>
+              ) : null}
+              {teacherNameStatus === 'saved' ? <p>Nome aggiornato.</p> : null}
+              {teacherNameStatus === 'error' ? (
+                <p>{teacherNameError}</p>
+              ) : null}
+            </form>
+          ) : null}
           {isTeacher ? null : (
             <div className="profile-actions" aria-label="Azioni studente">
               <Link className="profile-action-link" href="/esercizi">

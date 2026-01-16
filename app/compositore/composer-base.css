@@ -112,6 +112,19 @@
   justify-content: center;
 }
 
+.dropzone-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: grab;
+  user-select: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dropzone-scroll.is-panning {
+  cursor: grabbing;
+}
+
 .clef-toggle {
   display: inline-flex;
   align-items: center;
