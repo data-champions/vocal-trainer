@@ -303,6 +303,13 @@ type DropEvent = {
   } | null;
 };
 
+type DropzoneMetrics = {
+  notesRect: DOMRect;
+  slotPositions: number[];
+  staffSlotStart: number;
+  staffSlotEnd: number;
+};
+
 const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
   let candidate = x;
   const occupied = notes
@@ -321,36 +328,9 @@ const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
   return candidate;
 };
 
-const computeDropPlacement = (event: DropEvent) => {
-  const dropzone = event.target as HTMLElement | null;
-  const notesArea = dropzone?.querySelector(".dropzone-notes") as HTMLElement | null;
-  const staffLines = dropzone
-    ?.querySelector(".staff-area")
-    ?.querySelectorAll(".staff-lines span");
-
-  if (!notesArea || !staffLines || staffLines.length === 0) {
-    return {
-      x: 0,
-      y: 0,
-      slot: 0,
-      outOfStaff: false,
-      outOfStaffDistance: 0,
-      ledgerLineOffsets: []
-    };
-  }
-
-  const notesRect = notesArea.getBoundingClientRect();
-  const lineCenters = Array.from(staffLines)
-    .map((line) => {
-      const rect = (line as HTMLElement).getBoundingClientRect();
-      return rect.top + rect.height / 2 - notesRect.top;
-    })
-    .sort((a, b) => a - b);
-  const staffSlotCount = lineCenters.length * 2 - 1;
-  const staffSlotStart = LEDGER_SLOT_COUNT;
-  const staffSlotEnd = staffSlotStart + staffSlotCount - 1;
-
+const buildSlotPositions = (lineCenters: number[]) => {
   const slotPositions: number[] = [];
+
   for (let i = 0; i < lineCenters.length; i++) {
     slotPositions.push(lineCenters[i]);
     if (i < lineCenters.length - 1) {
@@ -368,9 +348,41 @@ const computeDropPlacement = (event: DropEvent) => {
     }
   }
 
-  const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
-  const dropX = (event.dragEvent?.clientX ?? notesRect.left) - notesRect.left;
+  return slotPositions;
+};
 
+const getDropzoneMetrics = (event: DropEvent): DropzoneMetrics | null => {
+  const dropzone = event.target as HTMLElement | null;
+  const notesArea = dropzone?.querySelector(".dropzone-notes") as HTMLElement | null;
+  const staffLines = dropzone
+    ?.querySelector(".staff-area")
+    ?.querySelectorAll(".staff-lines span");
+
+  if (!notesArea || !staffLines || staffLines.length === 0) {
+    return null;
+  }
+
+  const notesRect = notesArea.getBoundingClientRect();
+  const lineCenters = Array.from(staffLines)
+    .map((line) => {
+      const rect = (line as HTMLElement).getBoundingClientRect();
+      return rect.top + rect.height / 2 - notesRect.top;
+    })
+    .sort((a, b) => a - b);
+  const staffSlotCount = lineCenters.length * 2 - 1;
+  const staffSlotStart = LEDGER_SLOT_COUNT;
+  const staffSlotEnd = staffSlotStart + staffSlotCount - 1;
+  const slotPositions = buildSlotPositions(lineCenters);
+
+  return {
+    notesRect,
+    slotPositions,
+    staffSlotStart,
+    staffSlotEnd
+  };
+};
+
+const findNearestSlot = (dropY: number, slotPositions: number[]) => {
   let nearestSlot = 0;
   let nearestDiff = Number.POSITIVE_INFINITY;
   slotPositions.forEach((pos, idx) => {
@@ -380,6 +392,41 @@ const computeDropPlacement = (event: DropEvent) => {
       nearestSlot = idx;
     }
   });
+
+  return nearestSlot;
+};
+
+const areOffsetsEqual = (left: number[], right: number[]) => {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const computeDropPlacement = (event: DropEvent) => {
+  const metrics = getDropzoneMetrics(event);
+  if (!metrics) {
+    return {
+      x: 0,
+      y: 0,
+      slot: 0,
+      outOfStaff: false,
+      outOfStaffDistance: 0,
+      ledgerLineOffsets: []
+    };
+  }
+
+  const { notesRect, slotPositions, staffSlotStart, staffSlotEnd } = metrics;
+
+  const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
+  const dropX = (event.dragEvent?.clientX ?? notesRect.left) - notesRect.left;
+
+  const nearestSlot = findNearestSlot(dropY, slotPositions);
 
   const outOfStaffDistance =
     nearestSlot < staffSlotStart
@@ -427,6 +474,27 @@ const computeDropPlacement = (event: DropEvent) => {
     outOfStaffDistance,
     ledgerLineOffsets
   };
+};
+
+const computeDropHighlight = (event: DropEvent) => {
+  const metrics = getDropzoneMetrics(event);
+  if (!metrics) {
+    return [];
+  }
+
+  const { notesRect, slotPositions, staffSlotStart } = metrics;
+  const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
+  const nearestSlot = findNearestSlot(dropY, slotPositions);
+  const slotDelta = Math.abs(nearestSlot - staffSlotStart);
+  const isLineSlot = slotDelta % 2 === 0;
+  const lineSlots = isLineSlot
+    ? [nearestSlot]
+    : [nearestSlot - 1, nearestSlot + 1];
+
+  return lineSlots
+    .filter((slot) => slot >= 0 && slot < slotPositions.length)
+    .map((slot) => slotPositions[slot] ?? 0)
+    .filter((value) => Number.isFinite(value));
 };
 
 export default function ComposerApp() {
