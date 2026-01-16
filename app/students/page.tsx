@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSession } from 'next-auth/react';
 // import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
@@ -53,6 +53,15 @@ export default function StudentsPage(): JSX.Element {
   const [assignmentStatus, setAssignmentStatus] = useState<'idle' | 'loading'>(
     'idle'
   );
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(
+    null
+  );
+  const [editingMessage, setEditingMessage] = useState('');
+  const [editingMessageInitial, setEditingMessageInitial] = useState('');
+  const [messageEditStatus, setMessageEditStatus] = useState<
+    'idle' | 'saving' | 'error'
+  >('idle');
+  const [messageEditError, setMessageEditError] = useState('');
 
   const loadStudents = useCallback(async () => {
     const response = await fetch('/api/students');
@@ -172,10 +181,73 @@ export default function StudentsPage(): JSX.Element {
         window.alert('Errore nella rimozione dell\'esercizio.');
         return;
       }
+      if (editingExerciseId === exerciseId) {
+        setEditingExerciseId(null);
+        setEditingMessage('');
+        setEditingMessageInitial('');
+        setMessageEditStatus('idle');
+        setMessageEditError('');
+      }
       await loadExercises();
     },
-    [loadExercises]
+    [editingExerciseId, loadExercises]
   );
+
+  const handleStartEditMessage = useCallback(
+    (exercise: AssignedExercise) => {
+      setEditingExerciseId(exercise.id);
+      const currentMessage =
+        typeof exercise.message === 'string' ? exercise.message : '';
+      setEditingMessage(currentMessage);
+      setEditingMessageInitial(currentMessage);
+      setMessageEditStatus('idle');
+      setMessageEditError('');
+    },
+    []
+  );
+
+  const handleCancelEditMessage = useCallback(() => {
+    setEditingExerciseId(null);
+    setEditingMessage('');
+    setEditingMessageInitial('');
+    setMessageEditStatus('idle');
+    setMessageEditError('');
+  }, []);
+
+  const handleSaveMessage = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!editingExerciseId) {
+        return;
+      }
+      const trimmedMessage = editingMessage.trim();
+      const trimmedInitial = editingMessageInitial.trim();
+      if (trimmedMessage === trimmedInitial) {
+        return;
+      }
+      setMessageEditStatus('saving');
+      setMessageEditError('');
+      const response = await fetch(`/api/exercises/${editingExerciseId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: trimmedMessage }),
+      });
+      if (!response.ok) {
+        setMessageEditStatus('error');
+        setMessageEditError('Impossibile aggiornare il messaggio.');
+        return;
+      }
+      await loadExercises();
+      setEditingExerciseId(null);
+      setEditingMessage('');
+      setEditingMessageInitial('');
+      setMessageEditStatus('idle');
+    },
+    [editingExerciseId, editingMessage, editingMessageInitial, loadExercises]
+  );
+
+  const isEditingMessageDirty =
+    editingMessage.trim() !== editingMessageInitial.trim();
 
   const handleWhatsAppShare = useCallback(() => {
     if (!inviteLink) {
@@ -432,6 +504,79 @@ export default function StudentsPage(): JSX.Element {
                 <ul className="exercise-list">
                   {exercises.map((exercise) => (
                     <li key={exercise.id} className="exercise-list__item">
+                      {editingExerciseId === exercise.id ? (
+                        <form onSubmit={handleSaveMessage}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px',
+                            }}
+                          >
+                            <strong>{exercise.patternName}</strong>
+                            <span>
+                              Studente: {exercise.studentName} (
+                              {exercise.studentEmail})
+                            </span>
+                            <label
+                              className="stacked-label"
+                              htmlFor={`exercise-message-${exercise.id}`}
+                            >
+                              Messaggio
+                              <input
+                                id={`exercise-message-${exercise.id}`}
+                                type="text"
+                                className="profile-input"
+                                value={editingMessage}
+                                onChange={(event) =>
+                                  setEditingMessage(event.target.value)
+                                }
+                                placeholder="Messaggio per lo studente"
+                                disabled={messageEditStatus === 'saving'}
+                              />
+                            </label>
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '8px',
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="text-button"
+                                disabled={
+                                  messageEditStatus === 'saving' ||
+                                  !isEditingMessageDirty
+                                }
+                              >
+                                {messageEditStatus === 'saving'
+                                  ? 'Salvataggio...'
+                                  : 'Salva messaggio'}
+                              </button>
+                              <button
+                                type="button"
+                                className="text-button"
+                                onClick={handleCancelEditMessage}
+                                disabled={messageEditStatus === 'saving'}
+                              >
+                                Annulla
+                              </button>
+                              <button
+                                type="button"
+                                className="text-button"
+                                onClick={() => handleRemoveExercise(exercise.id)}
+                                disabled={messageEditStatus === 'saving'}
+                              >
+                                Rimuovi
+                              </button>
+                            </div>
+                            {messageEditStatus === 'error' ? (
+                              <p>{messageEditError}</p>
+                            ) : null}
+                          </div>
+                        </form>
+                      ) : (
                       <div
                         style={{
                           display: 'flex',
@@ -447,14 +592,30 @@ export default function StudentsPage(): JSX.Element {
                         {exercise.message ? (
                           <span>Messaggio: {exercise.message}</span>
                         ) : null}
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => handleRemoveExercise(exercise.id)}
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                          }}
                         >
-                          Rimuovi
-                        </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => handleStartEditMessage(exercise)}
+                          >
+                            Modifica messaggio
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => handleRemoveExercise(exercise.id)}
+                          >
+                            Rimuovi
+                          </button>
+                        </div>
                       </div>
+                      )}
                     </li>
                   ))}
                 </ul>

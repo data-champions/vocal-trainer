@@ -7,7 +7,8 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent
 } from "react";
 import interact from "interactjs";
 import { encodeWav } from "../../../lib/audio";
@@ -24,6 +25,8 @@ const NOTE_HEAD_OFFSET_Y = 50;
 const LEDGER_SLOT_COUNT = 6; // tagli addizionali added above and below the staff
 const NOTE_GAP = NOTE_WIDTH * 0.25;
 const NOTE_STEP = NOTE_WIDTH + NOTE_GAP;
+const MIN_DROPZONE_WIDTH = NOTE_STEP * 128;
+const DROPZONE_TRAILING_SPACE = NOTE_STEP * 8;
 const PPQ = 480;
 const DEFAULT_TEMPO_MICROS = 500000;
 const SECONDS_PER_BEAT = DEFAULT_TEMPO_MICROS / 1_000_000;
@@ -444,6 +447,10 @@ export default function ComposerApp() {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const staffRef = useRef<HTMLDivElement | null>(null);
+  const dropzoneScrollRef = useRef<HTMLDivElement | null>(null);
+  const dropzonePanningRef = useRef(false);
+  const dropzonePanStartXRef = useRef(0);
+  const dropzonePanStartScrollLeftRef = useRef(0);
   const [layout, setLayout] = useState({
     slotStep: DEFAULT_SLOT_STEP,
     staffTop: DEFAULT_STAFF_TOP
@@ -459,6 +466,70 @@ export default function ComposerApp() {
   const [isRenderingAudio, setIsRenderingAudio] = useState(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoplayRef = useRef(false);
+  const dropzoneWidth = useMemo(() => {
+    const maxNoteX = placedNotes.reduce((max, note) => {
+      const noteX = note.x ?? note.beat * NOTE_STEP;
+      return Math.max(max, noteX);
+    }, 0);
+
+    return Math.max(
+      MIN_DROPZONE_WIDTH,
+      maxNoteX + DROPZONE_TRAILING_SPACE + NOTE_WIDTH
+    );
+  }, [placedNotes]);
+
+  const handleDropzonePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "mouse" || event.button !== 0) {
+        return;
+      }
+      const target = event.target as HTMLElement;
+      if (target.closest(".note")) {
+        return;
+      }
+      const scrollEl = dropzoneScrollRef.current;
+      if (!scrollEl) {
+        return;
+      }
+
+      dropzonePanningRef.current = true;
+      dropzonePanStartXRef.current = event.clientX;
+      dropzonePanStartScrollLeftRef.current = scrollEl.scrollLeft;
+      scrollEl.classList.add("is-panning");
+      scrollEl.setPointerCapture(event.pointerId);
+    },
+    []
+  );
+
+  const handleDropzonePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!dropzonePanningRef.current || event.pointerType !== "mouse") {
+        return;
+      }
+      const scrollEl = dropzoneScrollRef.current;
+      if (!scrollEl) {
+        return;
+      }
+      const deltaX = event.clientX - dropzonePanStartXRef.current;
+      scrollEl.scrollLeft = dropzonePanStartScrollLeftRef.current - deltaX;
+    },
+    []
+  );
+
+  const handleDropzonePointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!dropzonePanningRef.current) {
+        return;
+      }
+      const scrollEl = dropzoneScrollRef.current;
+      if (scrollEl?.hasPointerCapture(event.pointerId)) {
+        scrollEl.releasePointerCapture(event.pointerId);
+      }
+      dropzonePanningRef.current = false;
+      scrollEl?.classList.remove("is-panning");
+    },
+    []
+  );
 
   useEffect(() => {
     const updateLayout = () => {
@@ -743,7 +814,7 @@ export default function ComposerApp() {
         }
         const created = await saveNewPattern();
         if (created) {
-          window.alert("Nuovo pattern creato.");
+          window.alert("Nuova melodia creata.");
         }
         return;
       }
@@ -762,11 +833,11 @@ export default function ComposerApp() {
 
   const handleDeletePattern = async () => {
     if (!selectedPatternId || !selectedPattern) {
-      window.alert("Seleziona un pattern da eliminare.");
+      window.alert("Seleziona una melodia da eliminare.");
       return;
     }
     const confirmed = window.confirm(
-      `Vuoi eliminare il pattern "${selectedPattern.name}"?`
+      `Vuoi eliminare la melodia "${selectedPattern.name}"?`
     );
     if (!confirmed) {
       return;
@@ -775,11 +846,11 @@ export default function ComposerApp() {
       method: "DELETE"
     });
     if (!response.ok) {
-      window.alert("Errore nell'eliminazione del pattern.");
+      window.alert("Errore nell'eliminazione della melodia.");
       return;
     }
     await refreshPatterns(null);
-    window.alert("Pattern eliminato.");
+    window.alert("Melodia eliminata.");
   };
 
   useEffect(() => {
@@ -972,7 +1043,8 @@ export default function ComposerApp() {
               aria-label="Seleziona pattern"
               title="Seleziona pattern"
             >
-              <option value="">Nuovo pattern</option>
+              <option value="">Nuova melodia</option>
+              {/* pattern=melodia */}
               {patterns.map((pattern) => (
                 <option key={pattern.id} value={pattern.id}>
                   {pattern.name}
@@ -995,8 +1067,8 @@ export default function ComposerApp() {
               aria-label="Scegli chiave"
               title="Scegli chiave"
             >
-              <option value="treble">Violino</option>
-              <option value="bass">Basso</option>
+              <option value="treble">Chiave di violino</option>
+              <option value="bass">Chiave di basso</option>
             </select>
           </div>
           <button
@@ -1005,7 +1077,7 @@ export default function ComposerApp() {
             onClick={handleSaveMelody}
             disabled={!hasNotes || !hasPatternName}
           >
-            Salva pattern
+            Salva melodia
           </button>
           <button
             type="button"
@@ -1013,7 +1085,7 @@ export default function ComposerApp() {
             onClick={handleDeletePattern}
             disabled={!selectedPatternId}
           >
-            Elimina pattern
+            Elimina melodia
           </button>
           <button
             type="button"
@@ -1074,49 +1146,60 @@ export default function ComposerApp() {
          ) : null}
 
       <div className="container">
-        <div id="drop-target" className="dropzone">
-          <div className="dropzone-label">{clefLabel}</div>
-          <div className="staff">
-            <div className="staff-area" style={clefAnchorStyle} ref={staffRef}>
-              <div className="staff-clef" aria-hidden="true">
-                {clefSymbol}
-              </div>
-              <div className="staff-lines">
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="dropzone-notes">
-                {placedNotes.map((note) => (
-                  <div
-                    key={note.id}
-                    id={note.id}
-                    className={`note draggable dropped-note${note.outOfStaff ? " is-outside-staff" : ""}`}
-                    data-duration={note.duration}
-                    style={{
-                      left: `${note.x ?? note.beat * NOTE_STEP}px`,
-                      top: `${note.y ?? 0}px`
-                    }}
-                  >
-                    <Note duration={note.duration} />
-                    {note.ledgerLineOffsets?.map((offset, index) => (
-                      <span
-                        key={`${note.id}-ledger-${index}`}
-                        className="ledger-line"
-                        style={{ top: `${offset}px` }}
-                        aria-hidden="true"
-                      />
-                    ))}
-                  </div>
-                ))}
+        <div
+          className="dropzone-scroll"
+          ref={dropzoneScrollRef}
+          onPointerDown={handleDropzonePointerDown}
+          onPointerMove={handleDropzonePointerMove}
+          onPointerUp={handleDropzonePointerUp}
+          onPointerCancel={handleDropzonePointerUp}
+        >
+          <div
+            id="drop-target"
+            className="dropzone"
+            style={{ minWidth: dropzoneWidth }}
+          >
+            <div className="dropzone-label">{clefLabel}</div>
+            <div className="staff">
+              <div className="staff-area" style={clefAnchorStyle} ref={staffRef}>
+                <div className="staff-clef" aria-hidden="true">
+                  {clefSymbol}
+                </div>
+                <div className="staff-lines">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <div className="dropzone-notes">
+                  {placedNotes.map((note) => (
+                    <div
+                      key={note.id}
+                      id={note.id}
+                      className={`note draggable dropped-note${note.outOfStaff ? " is-outside-staff" : ""}`}
+                      data-duration={note.duration}
+                      style={{
+                        left: `${note.x ?? note.beat * NOTE_STEP}px`,
+                        top: `${note.y ?? 0}px`
+                      }}
+                    >
+                      <Note duration={note.duration} />
+                      {note.ledgerLineOffsets?.map((offset, index) => (
+                        <span
+                          key={`${note.id}-ledger-${index}`}
+                          className="ledger-line"
+                          style={{ top: `${offset}px` }}
+                          aria-hidden="true"
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-
         </div>
-        
       </div>
 
     </div>
