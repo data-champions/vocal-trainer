@@ -306,6 +306,19 @@ type DropEvent = {
   } | null;
 };
 
+type DropzoneMetrics = {
+  notesRect: DOMRect;
+  slotPositions: number[];
+  staffSlotStart: number;
+  staffSlotEnd: number;
+};
+
+type DropzonePreviewLine = {
+  offset: number;
+  kind: "staff" | "ledger";
+  x: number;
+};
+
 const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
   let candidate = x;
   const occupied = notes
@@ -324,36 +337,9 @@ const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
   return candidate;
 };
 
-const computeDropPlacement = (event: DropEvent) => {
-  const dropzone = event.target as HTMLElement | null;
-  const notesArea = dropzone?.querySelector(".dropzone-notes") as HTMLElement | null;
-  const staffLines = dropzone
-    ?.querySelector(".staff-area")
-    ?.querySelectorAll(".staff-lines span");
-
-  if (!notesArea || !staffLines || staffLines.length === 0) {
-    return {
-      x: 0,
-      y: 0,
-      slot: 0,
-      outOfStaff: false,
-      outOfStaffDistance: 0,
-      ledgerLineOffsets: []
-    };
-  }
-
-  const notesRect = notesArea.getBoundingClientRect();
-  const lineCenters = Array.from(staffLines)
-    .map((line) => {
-      const rect = (line as HTMLElement).getBoundingClientRect();
-      return rect.top + rect.height / 2 - notesRect.top;
-    })
-    .sort((a, b) => a - b);
-  const staffSlotCount = lineCenters.length * 2 - 1;
-  const staffSlotStart = LEDGER_SLOT_COUNT;
-  const staffSlotEnd = staffSlotStart + staffSlotCount - 1;
-
+const buildSlotPositions = (lineCenters: number[]) => {
   const slotPositions: number[] = [];
+
   for (let i = 0; i < lineCenters.length; i++) {
     slotPositions.push(lineCenters[i]);
     if (i < lineCenters.length - 1) {
@@ -371,9 +357,41 @@ const computeDropPlacement = (event: DropEvent) => {
     }
   }
 
-  const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
-  const dropX = (event.dragEvent?.clientX ?? notesRect.left) - notesRect.left;
+  return slotPositions;
+};
 
+const getDropzoneMetrics = (event: DropEvent): DropzoneMetrics | null => {
+  const dropzone = event.target as HTMLElement | null;
+  const notesArea = dropzone?.querySelector(".dropzone-notes") as HTMLElement | null;
+  const staffLines = dropzone
+    ?.querySelector(".staff-area")
+    ?.querySelectorAll(".staff-lines span");
+
+  if (!notesArea || !staffLines || staffLines.length === 0) {
+    return null;
+  }
+
+  const notesRect = notesArea.getBoundingClientRect();
+  const lineCenters = Array.from(staffLines)
+    .map((line) => {
+      const rect = (line as HTMLElement).getBoundingClientRect();
+      return rect.top + rect.height / 2 - notesRect.top;
+    })
+    .sort((a, b) => a - b);
+  const staffSlotCount = lineCenters.length * 2 - 1;
+  const staffSlotStart = LEDGER_SLOT_COUNT;
+  const staffSlotEnd = staffSlotStart + staffSlotCount - 1;
+  const slotPositions = buildSlotPositions(lineCenters);
+
+  return {
+    notesRect,
+    slotPositions,
+    staffSlotStart,
+    staffSlotEnd
+  };
+};
+
+const findNearestSlot = (dropY: number, slotPositions: number[]) => {
   let nearestSlot = 0;
   let nearestDiff = Number.POSITIVE_INFINITY;
   slotPositions.forEach((pos, idx) => {
@@ -383,6 +401,48 @@ const computeDropPlacement = (event: DropEvent) => {
       nearestSlot = idx;
     }
   });
+
+  return nearestSlot;
+};
+
+const arePreviewLinesEqual = (
+  left: DropzonePreviewLine[],
+  right: DropzonePreviewLine[]
+) => {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let i = 0; i < left.length; i += 1) {
+    if (
+      left[i]?.offset !== right[i]?.offset ||
+      left[i]?.kind !== right[i]?.kind ||
+      left[i]?.x !== right[i]?.x
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const computeDropPlacement = (event: DropEvent) => {
+  const metrics = getDropzoneMetrics(event);
+  if (!metrics) {
+    return {
+      x: 0,
+      y: 0,
+      slot: 0,
+      outOfStaff: false,
+      outOfStaffDistance: 0,
+      ledgerLineOffsets: []
+    };
+  }
+
+  const { notesRect, slotPositions, staffSlotStart, staffSlotEnd } = metrics;
+
+  const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
+  const dropX = (event.dragEvent?.clientX ?? notesRect.left) - notesRect.left;
+
+  const nearestSlot = findNearestSlot(dropY, slotPositions);
 
   const outOfStaffDistance =
     nearestSlot < staffSlotStart
@@ -432,6 +492,42 @@ const computeDropPlacement = (event: DropEvent) => {
   };
 };
 
+const computeDropHighlight = (event: DropEvent): DropzonePreviewLine[] => {
+  const metrics = getDropzoneMetrics(event);
+  if (!metrics) {
+    return [];
+  }
+
+  const { notesRect, slotPositions, staffSlotStart, staffSlotEnd } = metrics;
+  const dropY = (event.dragEvent?.clientY ?? notesRect.top) - notesRect.top;
+  const dropX = (event.dragEvent?.clientX ?? notesRect.left) - notesRect.left;
+  const nearestSlot = findNearestSlot(dropY, slotPositions);
+  const slotDelta = Math.abs(nearestSlot - staffSlotStart);
+  const isLineSlot = slotDelta % 2 === 0;
+  const lineSlots = isLineSlot
+    ? [nearestSlot]
+    : [nearestSlot - 1, nearestSlot + 1];
+  const noteX = Math.max(
+    0,
+    Math.min(notesRect.width - NOTE_WIDTH, dropX - NOTE_HEAD_OFFSET_X)
+  );
+
+  return lineSlots
+    .filter((slot) => slot >= 0 && slot < slotPositions.length)
+    .map((slot) => {
+      const offset = slotPositions[slot];
+      if (!Number.isFinite(offset)) {
+        return null;
+      }
+      return {
+        offset,
+        kind: slot >= staffSlotStart && slot <= staffSlotEnd ? "staff" : "ledger",
+        x: noteX
+      };
+    })
+    .filter((value): value is DropzonePreviewLine => value !== null);
+};
+
 export default function ComposerApp() {
   const [clef, setClef] = useState<"treble" | "bass">("treble");
   const clefSymbol = clef === "treble" ? "\uD834\uDD1E" : "\uD834\uDD22";
@@ -466,6 +562,7 @@ export default function ComposerApp() {
   const [isRenderingAudio, setIsRenderingAudio] = useState(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoplayRef = useRef(false);
+  const [previewLines, setPreviewLines] = useState<DropzonePreviewLine[]>([]);
   const dropzoneWidth = useMemo(() => {
     const maxNoteX = placedNotes.reduce((max, note) => {
       const noteX = note.x ?? note.beat * NOTE_STEP;
@@ -926,7 +1023,20 @@ export default function ComposerApp() {
     interact(".dropzone")
       .dropzone({
         overlap: 1.0,
+        ondropmove(event) {
+          const nextPreview = computeDropHighlight(event);
+          setPreviewLines((prev) =>
+            arePreviewLinesEqual(prev, nextPreview) ? prev : nextPreview
+          );
+        },
+        ondragleave() {
+          setPreviewLines([]);
+        },
+        ondropdeactivate() {
+          setPreviewLines([]);
+        },
         ondrop(event) {
+          setPreviewLines([]);
           const draggable = event.relatedTarget as HTMLElement | null;
           const duration = (draggable?.dataset.duration as NoteDuration | undefined) || "quarter";
           const isPaletteItem = draggable?.dataset.palette === "true";
@@ -1173,6 +1283,17 @@ export default function ComposerApp() {
                   <span />
                 </div>
                 <div className="dropzone-notes">
+                  {previewLines.map((line, index) => (
+                    <span
+                      key={`preview-line-${line.kind}-${index}`}
+                      className={`dropzone-preview-line${line.kind === "ledger" ? " is-ledger" : ""}`}
+                      style={{
+                        top: `${line.offset}px`,
+                        ["--preview-note-x" as string]: `${line.x}px`
+                      }}
+                      aria-hidden="true"
+                    />
+                  ))}
                   {placedNotes.map((note) => (
                     <div
                       key={note.id}

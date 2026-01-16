@@ -29,6 +29,7 @@
   --ledger-line-offset-x: calc(
     (var(--note-width) - var(--ledger-line-width)) / 2
   );
+  --dropzone-highlight-color: #22c55e;
   --composer-control-height: 52px;
   --composer-control-radius: 0.75rem;
   --composer-control-font-size: 0.95rem;
@@ -282,6 +283,21 @@
   width: 100%;
   min-height: var(--staff-area-height);
   z-index: 1;
+}
+
+.dropzone-preview-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--dropzone-highlight-color);
+  pointer-events: none;
+}
+
+.dropzone-preview-line.is-ledger {
+  left: calc(var(--preview-note-x) + var(--ledger-line-offset-x));
+  right: auto;
+  width: var(--ledger-line-width);
 }
 
 .staff {
