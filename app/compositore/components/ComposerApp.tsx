@@ -17,9 +17,10 @@ import { NOTE_NAMES } from "../../../lib/notes";
 import { renderPianoMelody, type PianoNoteEvent } from "../../../lib/piano";
 import type { Pattern, PatternScore } from "../../../lib/types";
 import { Note } from "./Note";
-import type { NoteDuration, NoteModel } from "../types";
+import type { NoteAccidental, NoteDuration, NoteModel } from "../types";
 
 const NOTE_WIDTH = 20;
+const DEFAULT_NOTE_WIDTH = 60;
 const NOTE_HEAD_OFFSET_X = 40;
 const NOTE_HEAD_OFFSET_Y = 50;
 const LEDGER_SLOT_COUNT = 6; // tagli addizionali added above and below the staff
@@ -63,6 +64,27 @@ const DIATONIC_INDEX: Record<string, number> = {
   a: 5,
   b: 6
 };
+const DIATONIC_LETTERS = ["c", "d", "e", "f", "g", "a", "b"];
+
+const accidentalToOffset = (accidental: NoteAccidental | null | undefined) => {
+  if (accidental === "sharp") {
+    return 1;
+  }
+  if (accidental === "flat") {
+    return -1;
+  }
+  return 0;
+};
+
+const accidentalToSymbol = (accidental: NoteAccidental | null | undefined) => {
+  if (accidental === "sharp") {
+    return "#";
+  }
+  if (accidental === "flat") {
+    return "b";
+  }
+  return "";
+};
 
 const durationToBeats: Record<NoteDuration, number> = {
   whole: 4,
@@ -80,7 +102,13 @@ const durationToSymbol: Record<NoteDuration, string> = {
   sixteenth: "16"
 };
 
-const parsePitch = (pitch: string | null | undefined) => {
+type ParsedPitch = {
+  letter: keyof typeof DIATONIC_INDEX;
+  octave: number;
+  accidental: NoteAccidental | null;
+};
+
+const parsePitch = (pitch: string | null | undefined): ParsedPitch | null => {
   if (!pitch) {
     return null;
   }
@@ -88,12 +116,22 @@ const parsePitch = (pitch: string | null | undefined) => {
   if (!match) {
     return null;
   }
-  const letter = match[1];
+  const letter = match[1] as keyof typeof DIATONIC_INDEX;
+  const accidental = match[2];
   const octave = Number(match[3]);
   if (!Number.isFinite(octave) || !(letter in DIATONIC_INDEX)) {
     return null;
   }
-  return { letter, octave };
+  return {
+    letter,
+    octave,
+    accidental:
+      accidental === "#"
+        ? "sharp"
+        : accidental === "b"
+          ? "flat"
+          : null
+  };
 };
 
 const getStaffSlotFromPitch = (
@@ -115,6 +153,24 @@ const getStaffSlotFromPitch = (
   const steps = targetIndex - baseIndex;
 
   return base.slot - steps;
+};
+
+const getPitchFromStaffSlot = (
+  staffSlot: number,
+  clef: "treble" | "bass"
+) => {
+  const base =
+    clef === "bass"
+      ? { letter: "f", octave: 3, slot: BASS_BASE_SLOT }
+      : { letter: "g", octave: 4, slot: TREBLE_BASE_SLOT };
+  const baseIndex = base.octave * 7 + DIATONIC_INDEX[base.letter];
+  const steps = base.slot - staffSlot;
+  const targetIndex = baseIndex + steps;
+  const letterIndex = ((targetIndex % 7) + 7) % 7;
+  const octave = Math.floor(targetIndex / 7);
+  const letter = DIATONIC_LETTERS[letterIndex] ?? "c";
+
+  return { letter, octave };
 };
 
 const parseDuration = (value: string | undefined): NoteDuration => {
@@ -162,6 +218,18 @@ const midiToPitch = (midi: number) => {
   const octave = Math.floor(midi / 12) - 1;
 
   return `${note}/${octave}`;
+};
+
+const buildPitchFromNote = (
+  note: NoteModel,
+  clef: "treble" | "bass"
+) => {
+  if (note.staffSlot == null) {
+    return midiToPitch(note.midi ?? 60);
+  }
+  const { letter, octave } = getPitchFromStaffSlot(note.staffSlot, clef);
+  const accidental = accidentalToSymbol(note.accidental);
+  return `${letter}${accidental}/${octave}`;
 };
 
 const midiToToneNote = (midi: number) => {
@@ -319,15 +387,21 @@ type DropzonePreviewLine = {
   x: number;
 };
 
-const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
+const resolveNoteX = (
+  x: number,
+  notes: NoteModel[],
+  minSpacing: number,
+  ignoreId?: string
+) => {
   let candidate = x;
   const occupied = notes
     .filter((note) => note.id !== ignoreId)
     .map((note) => note.x ?? note.beat * NOTE_STEP);
 
   let attempts = 0;
-  while (occupied.some((pos) => Math.abs(candidate - pos) < NOTE_STEP)) {
-    candidate += NOTE_STEP;
+  const step = Math.max(minSpacing, NOTE_STEP);
+  while (occupied.some((pos) => Math.abs(candidate - pos) < minSpacing)) {
+    candidate += step;
     attempts += 1;
     if (attempts > notes.length + 4) {
       break;
@@ -335,6 +409,21 @@ const resolveNoteX = (x: number, notes: NoteModel[], ignoreId?: string) => {
   }
 
   return candidate;
+};
+
+const applyMinimumSpacing = <T extends { x: number }>(
+  notes: T[],
+  minSpacing: number
+) => {
+  let lastX = -Infinity;
+  return notes.map((note) => {
+    const nextX = Math.max(note.x, lastX + minSpacing);
+    lastX = nextX;
+    if (nextX === note.x) {
+      return note;
+    }
+    return { ...note, x: nextX };
+  });
 };
 
 const buildSlotPositions = (lineCenters: number[]) => {
@@ -542,14 +631,18 @@ export default function ComposerApp() {
   const [patternName, setPatternName] = useState("");
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
+  const [selectedAccidental, setSelectedAccidental] =
+    useState<NoteAccidental | null>(null);
   const staffRef = useRef<HTMLDivElement | null>(null);
   const dropzoneScrollRef = useRef<HTMLDivElement | null>(null);
   const dropzonePanningRef = useRef(false);
   const dropzonePanStartXRef = useRef(0);
   const dropzonePanStartScrollLeftRef = useRef(0);
+  const selectedAccidentalRef = useRef<NoteAccidental | null>(null);
   const [layout, setLayout] = useState({
     slotStep: DEFAULT_SLOT_STEP,
-    staffTop: DEFAULT_STAFF_TOP
+    staffTop: DEFAULT_STAFF_TOP,
+    noteWidth: DEFAULT_NOTE_WIDTH
   });
   const [placedNotes, setPlacedNotes] = useState<NoteModel[]>([]);
   const hasNotes = placedNotes.length > 0;
@@ -571,9 +664,10 @@ export default function ComposerApp() {
 
     return Math.max(
       MIN_DROPZONE_WIDTH,
-      maxNoteX + DROPZONE_TRAILING_SPACE + NOTE_WIDTH
+      maxNoteX + DROPZONE_TRAILING_SPACE + layout.noteWidth
     );
-  }, [placedNotes]);
+  }, [layout.noteWidth, placedNotes]);
+  const minNoteSpacing = Math.max(layout.noteWidth * .75, NOTE_STEP);
 
   const handleDropzonePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -643,12 +737,28 @@ export default function ComposerApp() {
         styles.getPropertyValue("--staff-top"),
         DEFAULT_STAFF_TOP
       );
-      setLayout({ slotStep, staffTop });
+      const noteWidth = readCssNumber(
+        styles.getPropertyValue("--note-width"),
+        DEFAULT_NOTE_WIDTH
+      );
+      setLayout({ slotStep, staffTop, noteWidth });
     };
 
     updateLayout();
     window.addEventListener("resize", updateLayout);
     return () => window.removeEventListener("resize", updateLayout);
+  }, []);
+
+  useEffect(() => {
+    selectedAccidentalRef.current = selectedAccidental;
+  }, [selectedAccidental]);
+
+  const handleAccidentalToggle = useCallback((accidental: NoteAccidental) => {
+    setSelectedAccidental((prev) => {
+      const next = prev === accidental ? null : accidental;
+      selectedAccidentalRef.current = next;
+      return next;
+    });
   }, []);
 
   const buildPlacedNotesFromScore = useCallback(
@@ -668,11 +778,14 @@ export default function ComposerApp() {
       });
 
       idCounter.current = 0;
-      return orderedNotes.map((note, index) => {
+      const baseNotes = orderedNotes.map((note, index) => {
         const duration = parseDuration(note?.duration);
         const start = parseStart(note?.start, index);
+        const parsedPitch = parsePitch(note?.pitch);
         const staffSlot = getStaffSlotFromPitch(note?.pitch, targetClef);
-        const midi = midiFromStaffSlot(staffSlot, targetClef);
+        const accidental = parsedPitch?.accidental ?? null;
+        const baseMidi = midiFromStaffSlot(staffSlot, targetClef);
+        const midi = baseMidi + accidentalToOffset(accidental);
         const x = Math.max(0, start * NOTE_STEP);
         const y =
           layout.staffTop +
@@ -693,12 +806,14 @@ export default function ComposerApp() {
           x,
           y,
           staffSlot,
+          accidental,
           outOfStaff,
           ledgerLineOffsets
         };
       });
+      return applyMinimumSpacing(baseNotes, minNoteSpacing);
     },
-    [layout.slotStep, layout.staffTop]
+    [layout.slotStep, layout.staffTop, minNoteSpacing]
   );
 
   const applyPattern = useCallback(
@@ -847,7 +962,7 @@ export default function ComposerApp() {
       const durationBeats = durationToBeats[note.duration] ?? 1;
       const start = currentBeat;
       notes.push({
-        pitch: midiToPitch(note.midi ?? 60),
+        pitch: buildPitchFromNote(note, clef),
         duration: durationToSymbol[note.duration] ?? "q",
         start
       });
@@ -917,14 +1032,14 @@ export default function ComposerApp() {
       }
       const updated = await updatePattern(selectedPatternId);
       if (updated) {
-        window.alert("Pattern salvato.");
+        window.alert("Melodia salvata.");
       }
       return;
     }
 
     const created = await saveNewPattern();
     if (created) {
-      window.alert("Pattern salvato. Ora lo trovi in /esercizi.");
+      window.alert("Melodia salvata. Ora la trovi in /esercizi.");
     }
   };
 
@@ -1046,7 +1161,9 @@ export default function ComposerApp() {
           if (draggable) {
             if (isPaletteItem) {
               const newId = `note-${idCounter.current++}`;
-              const midi = midiFromStaffSlot(placement.slot, clef);
+              const accidental = selectedAccidentalRef.current;
+              const baseMidi = midiFromStaffSlot(placement.slot, clef);
+              const midi = baseMidi + accidentalToOffset(accidental);
               setPlacedNotes((prev) => [
                 ...prev,
                 {
@@ -1054,9 +1171,10 @@ export default function ComposerApp() {
                   duration,
                   midi,
                   beat: prev.length,
-                  x: resolveNoteX(placement.x, prev),
+                  x: resolveNoteX(placement.x, prev, minNoteSpacing),
                   y: placement.y,
                   staffSlot: placement.slot,
+                  accidental,
                   outOfStaff: placement.outOfStaff,
                   ledgerLineOffsets: placement.ledgerLineOffsets
                 }
@@ -1068,10 +1186,12 @@ export default function ComposerApp() {
                   note.id === draggable.id
                     ? {
                         ...note,
-                        x: resolveNoteX(placement.x, prev, note.id),
+                        x: resolveNoteX(placement.x, prev, minNoteSpacing, note.id),
                         y: placement.y,
                         staffSlot: placement.slot,
-                        midi: midiFromStaffSlot(placement.slot, clef),
+                        midi:
+                          midiFromStaffSlot(placement.slot, clef) +
+                          accidentalToOffset(note.accidental),
                         outOfStaff: placement.outOfStaff,
                         ledgerLineOffsets: placement.ledgerLineOffsets
                       }
@@ -1122,14 +1242,19 @@ export default function ComposerApp() {
       interact(".dropzone").unset();
       interact(".trash-dropzone").unset();
     };
-  }, [clef]);
+  }, [clef, minNoteSpacing]);
 
   useEffect(() => {
     setPlacedNotes((prev) =>
       prev.map((note) =>
         note.staffSlot == null
           ? note
-          : { ...note, midi: midiFromStaffSlot(note.staffSlot, clef) }
+          : {
+              ...note,
+              midi:
+                midiFromStaffSlot(note.staffSlot, clef) +
+                accidentalToOffset(note.accidental)
+            }
       )
     );
   }, [clef]);
@@ -1167,8 +1292,8 @@ export default function ComposerApp() {
             className="exercise-name-input"
             value={patternName}
             onChange={(event) => setPatternName(event.target.value)}
-            placeholder="Nome pattern"
-            aria-label="Nome pattern"
+            placeholder="Nome melodia"
+            aria-label="Nome melodia"
           />
           <div className="clef-toggle">
             <select
@@ -1207,6 +1332,32 @@ export default function ComposerApp() {
           </button>
         </div>
         <div className="palette-notes" aria-label="Note disponibili">
+          <div className="palette-accidentals" aria-label="Alterazioni">
+            <button
+              type="button"
+              className={`accidental-toggle${
+                selectedAccidental === "sharp" ? " is-selected" : ""
+              }`}
+              onClick={() => handleAccidentalToggle("sharp")}
+              aria-pressed={selectedAccidental === "sharp"}
+              aria-label="Diesis"
+              title="Diesis"
+            >
+              <span aria-hidden="true">{"\u266f"}</span>
+            </button>
+            <button
+              type="button"
+              className={`accidental-toggle${
+                selectedAccidental === "flat" ? " is-selected" : ""
+              }`}
+              onClick={() => handleAccidentalToggle("flat")}
+              aria-pressed={selectedAccidental === "flat"}
+              aria-label="Bemolle"
+              title="Bemolle"
+            >
+              <span aria-hidden="true">{"\u266d"}</span>
+            </button>
+          </div>
           {paletteNotes.map((note) => (
             <Fragment key={note.id}>
               <div
@@ -1215,7 +1366,7 @@ export default function ComposerApp() {
                 data-duration={note.duration}
                 data-palette="true"
               >
-                <Note duration={note.duration} />
+                <Note duration={note.duration} accidental={selectedAccidental} />
               </div>
               {note.duration === "whole" ? (
                 <div
@@ -1305,7 +1456,7 @@ export default function ComposerApp() {
                         top: `${note.y ?? 0}px`
                       }}
                     >
-                      <Note duration={note.duration} />
+                      <Note duration={note.duration} accidental={note.accidental} />
                       {note.ledgerLineOffsets?.map((offset, index) => (
                         <span
                           key={`${note.id}-ledger-${index}`}

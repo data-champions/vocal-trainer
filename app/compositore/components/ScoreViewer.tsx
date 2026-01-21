@@ -8,10 +8,11 @@ import {
   type CSSProperties
 } from "react";
 import { Note } from "./Note";
-import type { NoteDuration } from "../types";
+import type { NoteAccidental, NoteDuration } from "../types";
 
 const NOTE_HEAD_OFFSET_Y = 50;
 const NOTE_STEP = 25;
+const DEFAULT_NOTE_WIDTH = 60;
 const LEDGER_SLOT_COUNT = 6;
 const STAFF_LINE_COUNT = 5;
 const STAFF_SLOT_COUNT = STAFF_LINE_COUNT * 2 - 1;
@@ -69,6 +70,7 @@ type ScoreViewerProps = {
 type LayoutMetrics = {
   staffTop: number;
   slotStep: number;
+  noteWidth: number;
 };
 
 type LayoutNote = {
@@ -76,11 +78,18 @@ type LayoutNote = {
   duration: NoteDuration;
   x: number;
   y: number;
+  accidental?: NoteAccidental | null;
   outOfStaff: boolean;
   ledgerLineOffsets: number[];
 };
 
-const parsePitch = (pitch: string | null | undefined) => {
+type ParsedPitch = {
+  letter: keyof typeof DIATONIC_INDEX;
+  octave: number;
+  accidental: NoteAccidental | null;
+};
+
+const parsePitch = (pitch: string | null | undefined): ParsedPitch | null => {
   if (!pitch) {
     return null;
   }
@@ -88,12 +97,22 @@ const parsePitch = (pitch: string | null | undefined) => {
   if (!match) {
     return null;
   }
-  const letter = match[1];
+  const letter = match[1] as keyof typeof DIATONIC_INDEX;
+  const accidental = match[2];
   const octave = Number(match[3]);
   if (!Number.isFinite(octave) || !(letter in DIATONIC_INDEX)) {
     return null;
   }
-  return { letter, octave };
+  return {
+    letter,
+    octave,
+    accidental:
+      accidental === "#"
+        ? "sharp"
+        : accidental === "b"
+          ? "flat"
+          : null
+  };
 };
 
 const getStaffSlotFromPitch = (
@@ -156,11 +175,27 @@ const readCssNumber = (value: string, fallback: number) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const applyMinimumSpacing = <T extends { x: number }>(
+  notes: T[],
+  minSpacing: number
+) => {
+  let lastX = -Infinity;
+  return notes.map((note) => {
+    const nextX = Math.max(note.x, lastX + minSpacing);
+    lastX = nextX;
+    if (nextX === note.x) {
+      return note;
+    }
+    return { ...note, x: nextX };
+  });
+};
+
 export default function ScoreViewer({ score }: ScoreViewerProps) {
   const staffRef = useRef<HTMLDivElement | null>(null);
   const [layout, setLayout] = useState<LayoutMetrics>({
     slotStep: DEFAULT_SLOT_STEP,
-    staffTop: DEFAULT_STAFF_TOP
+    staffTop: DEFAULT_STAFF_TOP,
+    noteWidth: DEFAULT_NOTE_WIDTH
   });
 
   const parsedScore = useMemo<SerializedScore | null>(() => {
@@ -198,7 +233,11 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
         styles.getPropertyValue("--staff-top"),
         DEFAULT_STAFF_TOP
       );
-      setLayout({ slotStep, staffTop });
+      const noteWidth = readCssNumber(
+        styles.getPropertyValue("--note-width"),
+        DEFAULT_NOTE_WIDTH
+      );
+      setLayout({ slotStep, staffTop, noteWidth });
     };
 
     updateLayout();
@@ -210,6 +249,7 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
     if (!parsedScore?.notes || !Array.isArray(parsedScore.notes)) {
       return [];
     }
+    const minSpacing = Math.max(layout.noteWidth * .75, NOTE_STEP);
     const staffSlotStart = LEDGER_SLOT_COUNT;
     const staffSlotEnd = staffSlotStart + STAFF_SLOT_COUNT - 1;
     const orderedNotes = [...parsedScore.notes].sort((a, b) => {
@@ -218,9 +258,11 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
       return startA - startB;
     });
 
-    return orderedNotes.map((note, index) => {
+    const baseNotes = orderedNotes.map((note, index) => {
       const duration = parseDuration(note?.duration);
       const start = parseStart(note?.start, index);
+      const parsedPitch = parsePitch(note?.pitch);
+      const accidental = parsedPitch?.accidental ?? null;
       const slot = getStaffSlotFromPitch(note?.pitch, clef);
       const x = Math.max(0, start * NOTE_STEP);
       const y =
@@ -235,10 +277,12 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
         duration,
         x,
         y,
+        accidental,
         outOfStaff,
         ledgerLineOffsets
       };
     });
+    return applyMinimumSpacing(baseNotes, minSpacing);
   }, [clef, layout, parsedScore]);
 
   const clefAnchorStyle = {
@@ -282,7 +326,7 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
                     top: `${note.y}px`
                   }}
                 >
-                  <Note duration={note.duration} />
+                  <Note duration={note.duration} accidental={note.accidental} />
                   {note.ledgerLineOffsets.map((offset, index) => (
                     <span
                       key={`${note.id}-ledger-${index}`}
