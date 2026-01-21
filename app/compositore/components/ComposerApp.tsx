@@ -1358,40 +1358,42 @@ export default function ComposerApp() {
               <span aria-hidden="true">{"\u266d"}</span>
             </button>
           </div>
-          {paletteNotes.map((note) => (
-            <Fragment key={note.id}>
-              <div
-                id={note.id}
-                className="note draggable palette-item"
-                data-duration={note.duration}
-                data-palette="true"
-              >
-                <Note duration={note.duration} accidental={selectedAccidental} />
-              </div>
-              {note.duration === "whole" ? (
+          <div className="palette-note-row">
+            {paletteNotes.map((note) => (
+              <Fragment key={note.id}>
                 <div
-                  className="trash-dropzone"
-                  aria-label="Elimina nota"
-                  title="Trascina qui per eliminare"
+                  id={note.id}
+                  className="note draggable palette-item"
+                  data-duration={note.duration}
+                  data-palette="true"
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path
-                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0V4.5a2.25 2.25 0 0 0-2.25-2.25h-3a2.25 2.25 0 0 0-2.25 2.25v1.289m7.5 0a48.11 48.11 0 0 0-7.5 0"
-                    />
-                  </svg>
+                  <Note duration={note.duration} accidental={selectedAccidental} />
                 </div>
-              ) : null}
-            </Fragment>
-          ))}
+                {note.duration === "whole" ? (
+                  <div
+                    className="trash-dropzone"
+                    aria-label="Elimina nota"
+                    title="Trascina qui per eliminare"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0V4.5a2.25 2.25 0 0 0-2.25-2.25h-3a2.25 2.25 0 0 0-2.25 2.25v1.289m7.5 0a48.11 48.11 0 0 0-7.5 0"
+                      />
+                    </svg>
+                  </div>
+                ) : null}
+              </Fragment>
+            ))}
+          </div>
         </div>
       </div>
 
