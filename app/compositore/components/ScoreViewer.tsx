@@ -83,7 +83,13 @@ type LayoutNote = {
   ledgerLineOffsets: number[];
 };
 
-const parsePitch = (pitch: string | null | undefined) => {
+type ParsedPitch = {
+  letter: keyof typeof DIATONIC_INDEX;
+  octave: number;
+  accidental: NoteAccidental | null;
+};
+
+const parsePitch = (pitch: string | null | undefined): ParsedPitch | null => {
   if (!pitch) {
     return null;
   }
@@ -91,7 +97,7 @@ const parsePitch = (pitch: string | null | undefined) => {
   if (!match) {
     return null;
   }
-  const letter = match[1];
+  const letter = match[1] as keyof typeof DIATONIC_INDEX;
   const accidental = match[2];
   const octave = Number(match[3]);
   if (!Number.isFinite(octave) || !(letter in DIATONIC_INDEX)) {
