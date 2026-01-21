@@ -88,6 +88,12 @@
   gap: 0.5rem;
 }
 
+.palette-note-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .accidental-toggle {
   width: var(--note-width);
   height: 80px;
@@ -406,6 +412,22 @@
 @media (max-width: 640px) {
   .palette-controls {
     grid-template-columns: 1fr;
+  }
+
+  .palette-notes {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .palette-accidentals {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .palette-note-row {
+    width: 100%;
+    flex-wrap: wrap;
   }
 }
 
