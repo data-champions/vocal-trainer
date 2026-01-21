@@ -78,7 +78,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   width: 100%;
 }
 
@@ -86,17 +86,25 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  max-width: 100%;
 }
 
 .palette-note-row {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  max-width: 100%;
+  --palette-note-width: var(--note-width);
+}
+
+.palette-note-row .note,
+.palette-note-row .trash-dropzone {
+  width: var(--palette-note-width);
 }
 
 .accidental-toggle {
   width: var(--note-width);
-  height: 80px;
+  height: var(--composer-control-height);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -105,7 +113,7 @@
   background: #f8fafc;
   color: #1f2937;
   cursor: pointer;
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 600;
   line-height: 1;
   padding: 0;
@@ -427,7 +435,9 @@
 
   .palette-note-row {
     width: 100%;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    --palette-note-width: 52px;
   }
 }
 
