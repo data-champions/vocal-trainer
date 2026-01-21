@@ -1,4 +1,5 @@
 export type NoteDuration = "whole" | "half" | "quarter" | "eighth" | "sixteenth";
+export type NoteAccidental = "sharp" | "flat";
 
 export interface NoteModel {
   id: string;
@@ -8,6 +9,7 @@ export interface NoteModel {
   x?: number;
   y?: number;
   staffSlot?: number;
+  accidental?: NoteAccidental | null;
   outOfStaff?: boolean;
   ledgerLineOffsets?: number[];
 }

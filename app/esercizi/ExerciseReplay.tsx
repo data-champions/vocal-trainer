@@ -42,23 +42,13 @@ const DURATION_BEATS: Record<string, number> = {
   "16": 0.25
 };
 
-const NOTE_TO_SEMITONE: Record<string, number> = {
+const NATURAL_TO_SEMITONE: Record<string, number> = {
   c: 0,
-  "c#": 1,
-  db: 1,
   d: 2,
-  "d#": 3,
-  eb: 3,
   e: 4,
   f: 5,
-  "f#": 6,
-  gb: 6,
   g: 7,
-  "g#": 8,
-  ab: 8,
   a: 9,
-  "a#": 10,
-  bb: 10,
   b: 11
 };
 
@@ -89,16 +79,18 @@ const parsePitchToMidi = (pitch: string | undefined) => {
   if (!match) {
     return null;
   }
-  const noteKey = `${match[1]}${match[2]}`;
+  const letter = match[1];
+  const accidental = match[2];
   const octave = Number(match[3]);
   if (!Number.isFinite(octave)) {
     return null;
   }
-  const semitone = NOTE_TO_SEMITONE[noteKey];
+  const semitone = NATURAL_TO_SEMITONE[letter];
   if (semitone === undefined) {
     return null;
   }
-  return (octave + 1) * 12 + semitone;
+  const offset = accidental === "#" ? 1 : accidental === "b" ? -1 : 0;
+  return (octave + 1) * 12 + semitone + offset;
 };
 
 const parseDurationBeats = (duration: string | undefined) => {

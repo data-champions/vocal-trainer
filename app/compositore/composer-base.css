@@ -82,6 +82,36 @@
   width: 100%;
 }
 
+.palette-accidentals {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.accidental-toggle {
+  width: var(--note-width);
+  height: 80px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #94a3b8;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  color: #1f2937;
+  cursor: pointer;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.accidental-toggle.is-selected {
+  border-color: var(--dropzone-highlight-color);
+  background: #dcfce7;
+  color: #166534;
+}
+
 .trash-dropzone {
   width: var(--note-width);
   height: 80px;

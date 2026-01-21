@@ -1,16 +1,38 @@
-import type { NoteDuration } from "../types";
+import type { NoteAccidental, NoteDuration } from "../types";
 
 type NoteProps = {
   duration: NoteDuration;
+  accidental?: NoteAccidental | null;
 };
 
-export function Note({ duration }: NoteProps) {
+export function Note({ duration, accidental = null }: NoteProps) {
   const hasStem = duration !== "whole";
   const isFilled = duration !== "half" && duration !== "whole";
   const flags = duration === "eighth" ? 1 : 0;
+  const accidentalSymbol =
+    accidental === "sharp" ? "\u266f" : accidental === "flat" ? "\u266d" : "";
+  const ariaAccidental =
+    accidental === "sharp" ? " sharp" : accidental === "flat" ? " flat" : "";
 
   return (
-    <svg width="40" height="80" viewBox="0 0 40 80" aria-label={`${duration} note`}>
+    <svg
+      width="40"
+      height="80"
+      viewBox="0 0 40 80"
+      aria-label={`${duration} note${ariaAccidental}`}
+    >
+      {accidentalSymbol ? (
+        <text
+          x="8"
+          y="50"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="18"
+          fill="currentColor"
+        >
+          {accidentalSymbol}
+        </text>
+      ) : null}
       {/* Note head */}
       <ellipse
         cx="20"
