@@ -23,7 +23,7 @@
   --clef-top: calc(var(--clef-anchor-y) - 0.45 * var(--clef-height));
   --clef-bottom: calc(var(--clef-top) + var(--clef-height));
   --staff-area-height: max(var(--ledger-bottom), var(--clef-bottom));
-  --note-width: 60px;
+  --note-width: 50px;
   --ledger-line-width: 18px;
   --ledger-line-thickness: 2px;
   --ledger-line-offset-x: calc(

@@ -400,12 +400,9 @@ const resolveNoteX = (
 
   let attempts = 0;
   const step = Math.max(minSpacing, NOTE_STEP);
-  while (occupied.some((pos) => Math.abs(candidate - pos) < minSpacing)) {
-    candidate += step;
-    attempts += 1;
-    if (attempts > notes.length + 4) {
-      break;
-    }
+  // if it overlaps, add spacing and moving right.
+  if (occupied.some((pos) => Math.abs(candidate - pos) < minSpacing)) {
+    candidate += step ;
   }
 
   return candidate;
