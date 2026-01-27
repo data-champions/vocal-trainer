@@ -249,7 +249,7 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
     if (!parsedScore?.notes || !Array.isArray(parsedScore.notes)) {
       return [];
     }
-    const minSpacing = Math.max(layout.noteWidth * .45, NOTE_STEP);
+    const minSpacing = Math.max(layout.noteWidth * .05, NOTE_STEP); // define minimum spacing between notes distance
     const staffSlotStart = LEDGER_SLOT_COUNT;
     const staffSlotEnd = staffSlotStart + STAFF_SLOT_COUNT - 1;
     const orderedNotes = [...parsedScore.notes].sort((a, b) => {
