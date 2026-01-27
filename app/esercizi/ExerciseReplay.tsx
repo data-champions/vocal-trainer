@@ -173,23 +173,8 @@ export default function ExerciseReplay({
     [item.score?.metadata?.tempo]
   );
 
-  const displayScore = useMemo(() => {
-    if (!item.score || !Array.isArray(item.score.notes)) {
-      return item.score;
-    }
-    if (transpose === 0) {
-      return item.score;
-    }
-    const notes = item.score.notes.map((note) => {
-      const midi = parsePitchToMidi(note?.pitch);
-      if (midi == null) {
-        return note;
-      }
-      const pitch = midiToToneNote(midi + transpose);
-      return { ...note, pitch };
-    });
-    return { ...item.score, notes };
-  }, [item.score, transpose]);
+  // Keep the staff visually fixed even when playback is transposed.
+  const displayScore = item.score;
 
   const preparedNotes = useMemo<PreparedNote[]>(() => {
     const notes = item.score?.notes;
