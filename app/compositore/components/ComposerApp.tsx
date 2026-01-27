@@ -1141,14 +1141,17 @@ export default function ComposerApp() {
             arePreviewLinesEqual(prev, nextPreview) ? prev : nextPreview
           );
         },
-        ondragleave() {
+        ondragleave(event) {
           setPreviewLines([]);
+          (event.target as HTMLElement | null)?.classList.remove("drop-activated");
         },
-        ondropdeactivate() {
+        ondropdeactivate(event) {
           setPreviewLines([]);
+          (event.target as HTMLElement | null)?.classList.remove("drop-activated");
         },
         ondrop(event) {
           setPreviewLines([]);
+          (event.target as HTMLElement | null)?.classList.remove("drop-activated");
           const draggable = event.relatedTarget as HTMLElement | null;
           const duration = (draggable?.dataset.duration as NoteDuration | undefined) || "quarter";
           const isPaletteItem = draggable?.dataset.palette === "true";

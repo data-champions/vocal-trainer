@@ -11,8 +11,8 @@ import { Note } from "./Note";
 import type { NoteAccidental, NoteDuration } from "../types";
 
 const NOTE_HEAD_OFFSET_Y = 50;
-const NOTE_STEP = 0; // distance between notes in pixels
-const DEFAULT_NOTE_WIDTH = 60;
+const NOTE_STEP = 25; // keep horizontal spacing consistent with the composer
+const DEFAULT_NOTE_WIDTH = 50;
 const LEDGER_SLOT_COUNT = 6;
 const STAFF_LINE_COUNT = 5;
 const STAFF_SLOT_COUNT = STAFF_LINE_COUNT * 2 - 1;
@@ -249,7 +249,7 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
     if (!parsedScore?.notes || !Array.isArray(parsedScore.notes)) {
       return [];
     }
-    const minSpacing = Math.max(layout.noteWidth * .05, NOTE_STEP); // define minimum spacing between notes distance
+    const minSpacing = Math.max(layout.noteWidth * 0.75, NOTE_STEP);
     const staffSlotStart = LEDGER_SLOT_COUNT;
     const staffSlotEnd = staffSlotStart + STAFF_SLOT_COUNT - 1;
     const orderedNotes = [...parsedScore.notes].sort((a, b) => {
