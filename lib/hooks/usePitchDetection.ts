@@ -15,6 +15,115 @@ type UsePitchDetectionParams = {
   audioElementRef: MutableRefObject<HTMLAudioElement | null>;
 };
 
+// Keep the mic stream warm across route changes to avoid repeat prompts.
+const SECONDS = 60000; // 60K seconds = several hours
+const MIC_STREAM_KEEP_ALIVE_MS = SECONDS * 1000;
+
+type SharedMicHandle = {
+  stream: MediaStream;
+  release: () => void;
+};
+
+let sharedMicStream: MediaStream | null = null;
+let sharedMicPromise: Promise<MediaStream> | null = null;
+let sharedMicUsers = 0;
+let sharedMicStopTimer: ReturnType<typeof setTimeout> | null = null;
+
+const isStreamLive = (stream: MediaStream) =>
+  stream.getTracks().some((track) => track.readyState === 'live');
+
+const clearSharedMicStopTimer = () => {
+  if (sharedMicStopTimer) {
+    clearTimeout(sharedMicStopTimer);
+    sharedMicStopTimer = null;
+  }
+};
+
+const stopSharedMicStream = () => {
+  clearSharedMicStopTimer();
+  if (sharedMicStream) {
+    sharedMicStream.getTracks().forEach((track) => track.stop());
+    sharedMicStream = null;
+  }
+};
+
+const scheduleSharedMicStop = () => {
+  clearSharedMicStopTimer();
+  if (MIC_STREAM_KEEP_ALIVE_MS <= 0) {
+    stopSharedMicStream();
+    return;
+  }
+  sharedMicStopTimer = setTimeout(() => {
+    if (sharedMicUsers === 0) {
+      stopSharedMicStream();
+    }
+  }, MIC_STREAM_KEEP_ALIVE_MS);
+};
+
+const retainSharedMicStream = () => {
+  sharedMicUsers += 1;
+  clearSharedMicStopTimer();
+};
+
+const releaseSharedMicStream = () => {
+  sharedMicUsers = Math.max(0, sharedMicUsers - 1);
+  if (sharedMicUsers === 0) {
+    scheduleSharedMicStop();
+  }
+};
+
+const attachStreamLifecycleHandlers = (stream: MediaStream) => {
+  const handleEnded = () => {
+    if (sharedMicStream === stream) {
+      sharedMicStream = null;
+    }
+  };
+  stream.getTracks().forEach((track) => {
+    track.addEventListener('ended', handleEnded, { once: true });
+  });
+  stream.addEventListener('inactive', handleEnded, { once: true });
+};
+
+const getSharedMicStream = async (
+  constraints: MediaStreamConstraints
+): Promise<MediaStream> => {
+  if (sharedMicStream && isStreamLive(sharedMicStream)) {
+    return sharedMicStream;
+  }
+  if (sharedMicStream) {
+    stopSharedMicStream();
+  }
+  if (sharedMicPromise) {
+    return sharedMicPromise;
+  }
+  sharedMicPromise = navigator.mediaDevices
+    .getUserMedia(constraints)
+    .then((stream) => {
+      sharedMicStream = stream;
+      sharedMicPromise = null;
+      attachStreamLifecycleHandlers(stream);
+      return stream;
+    })
+    .catch((error) => {
+      sharedMicPromise = null;
+      throw error;
+    });
+  return sharedMicPromise;
+};
+
+const acquireSharedMicStream = async (
+  constraints: MediaStreamConstraints
+): Promise<SharedMicHandle> => {
+  retainSharedMicStream();
+  try {
+    const stream = await getSharedMicStream(constraints);
+    return { stream, release: releaseSharedMicStream };
+  } catch (error) {
+    releaseSharedMicStream();
+    throw error;
+  }
+};
+
 export function usePitchDetection({
   noiseThreshold,
   selectedRangeFrequencies,
@@ -43,20 +152,30 @@ export function usePitchDetection({
   const outOfRangeAccumRef = useRef(0);
   const lastSplLogRef = useRef(0);
   const lastPitchTimestampRef = useRef<number | null>(null);
+  const micHandleRef = useRef<SharedMicHandle | null>(null);
+  const unmountedRef = useRef(false);
 
   useEffect(() => {
     targetFrequencyRef.current = getTargetFrequency();
   });
+
+  useEffect(
+    () => () => {
+      unmountedRef.current = true;
+    },
+    []
+  );
 
   const cleanup = useCallback(() => {
     if (pitchRafRef.current) {
       cancelAnimationFrame(pitchRafRef.current);
       pitchRafRef.current = null;
     }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((track) => track.stop());
-      micStreamRef.current = null;
+    if (micHandleRef.current) {
+      micHandleRef.current.release();
+      micHandleRef.current = null;
     }
+    micStreamRef.current = null;
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => undefined);
       audioContextRef.current = null;
@@ -81,7 +200,7 @@ export function usePitchDetection({
         if (!navigator.mediaDevices) {
           throw new Error('Media devices non disponibili');
         }
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const micHandle = await acquireSharedMicStream({
           audio: {
             /*       
             1. noiseSuppression
@@ -105,6 +224,12 @@ export function usePitchDetection({
             autoGainControl: true,
           },
         });
+        if (unmountedRef.current) {
+          micHandle.release();
+          return;
+        }
+        micHandleRef.current = micHandle;
+        const stream = micHandle.stream;
         micStreamRef.current = stream;
         const win = window as typeof window & {
           webkitAudioContext?: typeof AudioContext;
@@ -139,7 +264,14 @@ export function usePitchDetection({
         setPitchStatus('ready');
       } catch (error) {
         console.error('Impossibile avviare la pitch detection', error);
-        setPitchStatus('error');
+        if (micHandleRef.current) {
+          micHandleRef.current.release();
+          micHandleRef.current = null;
+        }
+        micStreamRef.current = null;
+        if (!unmountedRef.current) {
+          setPitchStatus('error');
+        }
       }
     };
     void start();
