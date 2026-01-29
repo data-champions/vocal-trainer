@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type MutableRefObject,
+} from 'react';
 
 type PlaybackControlsProps = {
   isPitchReady: boolean;
@@ -38,6 +44,11 @@ export function PlaybackControls({
   const shouldAutoPlayRef = useRef(false);
   const wasPlayingRef = useRef(false);
   const lastAudioUrlRef = useRef<string | null>(audioUrl);
+  const isSeekingRef = useRef(false);
+  const [volume, setVolume] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   useEffect(() => {
     wasPlayingRef.current = isAudioPlaying;
@@ -75,11 +86,130 @@ export function PlaybackControls({
     }
   }, [audioUrl, audioElementRef]);
 
+  useEffect(() => {
+    const audioEl = audioElementRef.current;
+    if (!audioEl) {
+      return;
+    }
+
+    const handleLoadedMetadata = () => {
+      const nextDuration = Number.isFinite(audioEl.duration)
+        ? audioEl.duration
+        : 0;
+      setDuration(nextDuration);
+      setCurrentTime(audioEl.currentTime || 0);
+    };
+
+    const handleTimeUpdate = () => {
+      if (isSeekingRef.current) {
+        return;
+      }
+      setCurrentTime(audioEl.currentTime || 0);
+    };
+
+    const handleDurationChange = () => {
+      setDuration(Number.isFinite(audioEl.duration) ? audioEl.duration : 0);
+    };
+
+    const handleVolumeChange = () => {
+      const nextVolume = audioEl.muted ? 0 : audioEl.volume;
+      setVolume(nextVolume);
+    };
+
+    const handleRateChange = () => {
+      setPlaybackRate(audioEl.playbackRate || 1);
+    };
+
+    handleLoadedMetadata();
+    handleVolumeChange();
+    handleRateChange();
+
+    audioEl.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audioEl.addEventListener('timeupdate', handleTimeUpdate);
+    audioEl.addEventListener('durationchange', handleDurationChange);
+    audioEl.addEventListener('volumechange', handleVolumeChange);
+    audioEl.addEventListener('ratechange', handleRateChange);
+
+    return () => {
+      audioEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audioEl.removeEventListener('timeupdate', handleTimeUpdate);
+      audioEl.removeEventListener('durationchange', handleDurationChange);
+      audioEl.removeEventListener('volumechange', handleVolumeChange);
+      audioEl.removeEventListener('ratechange', handleRateChange);
+    };
+  }, [audioElementRef, audioUrl]);
+
+  useEffect(() => {
+    const audioEl = audioElementRef.current;
+    if (!audioEl) {
+      return;
+    }
+    audioEl.volume = volume;
+    audioEl.muted = volume === 0;
+  }, [audioElementRef, volume]);
+
+  useEffect(() => {
+    const audioEl = audioElementRef.current;
+    if (!audioEl) {
+      return;
+    }
+    audioEl.playbackRate = playbackRate;
+  }, [audioElementRef, playbackRate]);
+
   const handleLoopClick = () => {
     onToggleLoop();
     if (audioUrl) {
       shouldAutoPlayRef.current = true;
     }
+  };
+
+  const handlePlayToggle = () => {
+    const audioEl = audioElementRef.current;
+    if (!audioEl) {
+      return;
+    }
+    if (audioEl.paused) {
+      void audioEl.play();
+    } else {
+      audioEl.pause();
+    }
+  };
+
+  const handleVolumeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextVolume = Number(event.target.value) / 100;
+    setVolume(nextVolume);
+  };
+
+  const handleSeekStart = () => {
+    isSeekingRef.current = true;
+  };
+
+  const handleSeekEnd = () => {
+    isSeekingRef.current = false;
+  };
+
+  const handleSeekChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextTime = Number(event.target.value);
+    setCurrentTime(nextTime);
+    const audioEl = audioElementRef.current;
+    if (audioEl) {
+      audioEl.currentTime = nextTime;
+    }
+  };
+
+  const handleSpeedToggle = () => {
+    const rounded = Math.round(playbackRate * 100) / 100;
+    const nextRate = rounded >= 2 ? 0.25 : Math.min(rounded + 0.25, 2);
+    setPlaybackRate(nextRate);
+  };
+
+  const formatTime = (value: number) => {
+    if (!Number.isFinite(value) || value < 0) {
+      return '0:00';
+    }
+    const minutes = Math.floor(value / 60);
+    const seconds = Math.floor(value % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -147,7 +277,6 @@ export function PlaybackControls({
         <audio
           key={audioUrl ?? 'audio-player'}
           ref={audioElementRef}
-          controls
           loop={playMode === 'loop'}
           src={audioUrl ?? undefined}
           aria-label={
@@ -155,22 +284,84 @@ export function PlaybackControls({
               ? `Sequenza: ${sequenceDescription}`
               : 'Audio generato'
           }
-          className="audio-loop-player"
+          className="audio-loop-player audio-loop-player--hidden"
         />
-        <button
-          className={`secondary-button loop-button${
-            playMode === 'loop' ? ' active' : ''
-          }`}
-          type="button"
-          aria-pressed={playMode === 'loop'}
-          onClick={handleLoopClick}
-          aria-label={
-            playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'
-          }
-          title={playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'}
-        >
-          🔁
-        </button>
+        <div className="audio-control-bar" role="group" aria-label="Controlli audio">
+          <div className="audio-control-left">
+            <button
+              className="audio-control-button"
+              type="button"
+              onClick={handlePlayToggle}
+              aria-label={isAudioPlaying ? 'Pausa' : 'Riproduci'}
+              title={isAudioPlaying ? 'Pausa' : 'Riproduci'}
+              disabled={!hasAudio}
+            >
+              {isAudioPlaying ? '⏸' : '▶'}
+            </button>
+            <div className="audio-volume-control">
+              <span className="audio-volume-icon" aria-hidden>
+                🔊
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(volume * 100)}
+                onChange={handleVolumeChange}
+                aria-label="Volume audio"
+                disabled={!hasAudio}
+                className="audio-range audio-volume-range"
+              />
+            </div>
+          </div>
+          <div className="audio-control-progress">
+            <span className="audio-time">{formatTime(currentTime)}</span>
+            <input
+              type="range"
+              min={0}
+              max={duration || 0}
+              step={0.01}
+              value={Math.min(currentTime, duration || 0)}
+              onChange={handleSeekChange}
+              onMouseDown={handleSeekStart}
+              onMouseUp={handleSeekEnd}
+              onTouchStart={handleSeekStart}
+              onTouchEnd={handleSeekEnd}
+              aria-label="Avanzamento audio"
+              disabled={!hasAudio || duration <= 0}
+              className="audio-range audio-progress-range"
+            />
+            <span className="audio-time">{formatTime(duration)}</span>
+          </div>
+          <div className="audio-control-right">
+            <button
+              className={`audio-control-button audio-loop-toggle${
+                playMode === 'loop' ? ' active' : ''
+              }`}
+              type="button"
+              aria-pressed={playMode === 'loop'}
+              onClick={handleLoopClick}
+              aria-label={
+                playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'
+              }
+              title={playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'}
+              disabled={!hasAudio}
+            >
+              🔁
+            </button>
+            <button
+              className="audio-speed-button"
+              type="button"
+              onClick={handleSpeedToggle}
+              aria-label={`Velocità ${playbackRate.toFixed(2)}x`}
+              title="Velocità riproduzione"
+              disabled={!hasAudio}
+            >
+              {playbackRate.toFixed(2).replace(/\.00$/, '')}x
+            </button>
+          </div>
+        </div>
       </div>
       <p
         style={{
