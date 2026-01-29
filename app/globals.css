@@ -488,6 +488,21 @@ button:disabled {
   padding: 6px 6px;
   font-size: 1rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.note-step-arrow {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.note-step-label {
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .base-note-row {
