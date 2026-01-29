@@ -16,6 +16,7 @@ import { GAP_SECONDS } from "../../../lib/constants";
 import { NOTE_NAMES } from "../../../lib/notes";
 import { renderPianoMelody, type PianoNoteEvent } from "../../../lib/piano";
 import type { Pattern, PatternScore } from "../../../lib/types";
+import { AudioControlBar } from "../../components/AudioControlBar";
 import { Note } from "./Note";
 import type { NoteAccidental, NoteDuration, NoteModel } from "../types";
 
@@ -707,6 +708,8 @@ export default function ComposerApp() {
   }, [trimmedPatternName, selectedPattern]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isRenderingAudio, setIsRenderingAudio] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [playMode, setPlayMode] = useState<"single" | "loop">("single");
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoplayRef = useRef(false);
   const [previewLines, setPreviewLines] = useState<DropzonePreviewLine[]>([]);
@@ -1172,6 +1175,26 @@ export default function ComposerApp() {
   }, [audioUrl]);
 
   useEffect(() => {
+    const audioEl = audioElementRef.current;
+    if (!audioEl) {
+      setIsAudioPlaying(false);
+      return;
+    }
+    const handlePlay = () => setIsAudioPlaying(true);
+    const handlePause = () => setIsAudioPlaying(false);
+    const handleEnded = () => setIsAudioPlaying(false);
+    audioEl.addEventListener("play", handlePlay);
+    audioEl.addEventListener("pause", handlePause);
+    audioEl.addEventListener("ended", handleEnded);
+    setIsAudioPlaying(!audioEl.paused);
+    return () => {
+      audioEl.removeEventListener("play", handlePlay);
+      audioEl.removeEventListener("pause", handlePause);
+      audioEl.removeEventListener("ended", handleEnded);
+    };
+  }, [audioUrl]);
+
+  useEffect(() => {
     return () => {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
@@ -1489,16 +1512,19 @@ export default function ComposerApp() {
         </div>
       </div>
 
-        {audioUrl ? (
-          <audio
-            key={audioUrl}
-            ref={audioElementRef}
-            controls
-            src={audioUrl}
-            className="composer-audio"
-            aria-label="Riproduzione melodia"
+      {audioUrl ? (
+        <AudioControlBar
+          audioElementRef={audioElementRef}
+          audioUrl={audioUrl}
+          isAudioPlaying={isAudioPlaying}
+          playMode={playMode}
+          onToggleLoop={() =>
+            setPlayMode((prev) => (prev === "loop" ? "single" : "loop"))
+          }
+          hasAudio={Boolean(audioUrl)}
+          ariaLabel="Riproduzione melodia"
         />
-         ) : null}
+      ) : null}
 
       <div className="container">
         <div
