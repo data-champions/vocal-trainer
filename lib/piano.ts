@@ -92,7 +92,7 @@ export async function renderPianoSequence(
     durationSeconds + releaseTail
   );
   const toneBuffer = await Tone.Offline(async () => {
-    const masterGain = new Tone.Gain(0.85).toDestination();
+    const masterGain = new Tone.Gain(1.1).toDestination();
     const sampler = new Tone.Sampler({
       urls: PIANO_SAMPLE_MAP,
       release: PIANO_RELEASE_SECONDS,
@@ -152,7 +152,7 @@ export async function renderPianoMelody(
   const offlineDuration = Math.max(sequenceSpan + releaseTail, releaseTail);
 
   const toneBuffer = await Tone.Offline(async () => {
-    const masterGain = new Tone.Gain(0.85).toDestination();
+    const masterGain = new Tone.Gain(1.1).toDestination();
     const sampler = new Tone.Sampler({
       urls: PIANO_SAMPLE_MAP,
       release: PIANO_RELEASE_SECONDS,

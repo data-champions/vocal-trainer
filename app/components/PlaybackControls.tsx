@@ -122,7 +122,10 @@ export function PlaybackControls({
             disabled={!canStepUp}
             title="Alza nota"
           >
-            ▲
+            <span className="note-step-arrow" aria-hidden="true">
+              ▲
+            </span>
+            <span className="note-step-label">Nota Su</span>
           </button>
           <button
             className="secondary-button note-step-button"
@@ -132,7 +135,10 @@ export function PlaybackControls({
             disabled={!canStepDown}
             title="Abbassa nota"
           >
-            ▼
+            <span className="note-step-arrow" aria-hidden="true">
+              ▼
+            </span>
+            <span className="note-step-label">Nota Giù</span>
           </button>
         </div>
       </div>
