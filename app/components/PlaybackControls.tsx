@@ -45,7 +45,9 @@ export function PlaybackControls({
   const wasPlayingRef = useRef(false);
   const lastAudioUrlRef = useRef<string | null>(audioUrl);
   const isSeekingRef = useRef(false);
+  const volumePopupRef = useRef<HTMLDivElement | null>(null);
   const [volume, setVolume] = useState(1);
+  const [isVolumeOpen, setIsVolumeOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -156,6 +158,40 @@ export function PlaybackControls({
     audioEl.playbackRate = playbackRate;
   }, [audioElementRef, playbackRate]);
 
+  useEffect(() => {
+    if (!isVolumeOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && volumePopupRef.current?.contains(target)) {
+        return;
+      }
+      setIsVolumeOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsVolumeOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isVolumeOpen]);
+
+  useEffect(() => {
+    if (!hasAudio) {
+      setIsVolumeOpen(false);
+    }
+  }, [hasAudio]);
+
   const handleLoopClick = () => {
     onToggleLoop();
     if (audioUrl) {
@@ -178,6 +214,13 @@ export function PlaybackControls({
   const handleVolumeChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextVolume = Number(event.target.value) / 100;
     setVolume(nextVolume);
+  };
+
+  const toggleVolumePopup = () => {
+    if (!hasAudio) {
+      return;
+    }
+    setIsVolumeOpen((prev) => !prev);
   };
 
   const handleSeekStart = () => {
@@ -211,6 +254,12 @@ export function PlaybackControls({
     const seconds = Math.floor(value % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  const volumePercent = Math.round(volume * 100);
+  const volumeLabel =
+    volumePercent === 0 ? 'Volume off' : `Volume ${volumePercent}%`;
+  const volumeIcon =
+    volumePercent === 0 ? '🔇' : volumePercent < 50 ? '🔈' : '🔊';
 
   return (
     <fieldset style={{ marginTop: '16px' }}>
@@ -298,21 +347,49 @@ export function PlaybackControls({
             >
               {isAudioPlaying ? '⏸' : '▶'}
             </button>
-            <div className="audio-volume-control">
-              <span className="audio-volume-icon" aria-hidden>
-                🔊
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={Math.round(volume * 100)}
-                onChange={handleVolumeChange}
+            <div
+              className="audio-volume-control audio-volume-popup"
+              ref={volumePopupRef}
+            >
+              <button
+                className="audio-control-button audio-volume-trigger"
+                type="button"
+                onClick={toggleVolumePopup}
+                aria-expanded={isVolumeOpen}
+                aria-controls="audio-volume-panel"
                 aria-label="Volume audio"
+                title={volumeLabel}
                 disabled={!hasAudio}
-                className="audio-range audio-volume-range"
-              />
+              >
+                {volumeIcon}
+              </button>
+              <div
+                id="audio-volume-panel"
+                className={`audio-volume-panel${
+                  isVolumeOpen ? ' is-open' : ''
+                }`}
+                role="dialog"
+                aria-label="Volume audio"
+                aria-hidden={!isVolumeOpen}
+              >
+                <span className="audio-volume-label">{volumeLabel}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={volumePercent}
+                  onChange={handleVolumeChange}
+                  aria-label="Volume audio"
+                  aria-valuetext={volumeLabel}
+                  disabled={!hasAudio}
+                  className="audio-range audio-volume-range"
+                />
+                <div className="audio-volume-scale" aria-hidden="true">
+                  <span>Off</span>
+                  <span>100%</span>
+                </div>
+              </div>
             </div>
           </div>
           <div className="audio-control-progress">
