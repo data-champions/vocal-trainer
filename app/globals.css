@@ -749,6 +749,47 @@ button:disabled {
   color: #fecaca;
 }
 
+.action-popup {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  max-width: min(360px, 90vw);
+  text-align: center;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.35);
+}
+
+.action-popup--inline {
+  animation: actionPopupIn 0.2s ease;
+  max-width: min(260px, 40vw);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.action-popup--success {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.5);
+  color: #bbf7d0;
+}
+
+.assignment-action-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+}
+
+@keyframes actionPopupIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .flash-button {
   animation: flashPulse 1s linear infinite;
 }
