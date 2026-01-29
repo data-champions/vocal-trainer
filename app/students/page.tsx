@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { useSession } from 'next-auth/react';
 // import { UserTabs } from '../components/UserTabs';
 import { useUserRole } from '../../lib/hooks/useUserRole';
@@ -53,6 +60,8 @@ export default function StudentsPage(): JSX.Element {
   const [assignmentStatus, setAssignmentStatus] = useState<'idle' | 'loading'>(
     'idle'
   );
+  const [actionPopup, setActionPopup] = useState<string | null>(null);
+  const popupTimeoutRef = useRef<number | null>(null);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(
     null
   );
@@ -130,6 +139,16 @@ export default function StudentsPage(): JSX.Element {
     }
   }, []);
 
+  const showActionPopup = useCallback((message: string) => {
+    setActionPopup(message);
+    if (popupTimeoutRef.current) {
+      window.clearTimeout(popupTimeoutRef.current);
+    }
+    popupTimeoutRef.current = window.setTimeout(() => {
+      setActionPopup(null);
+    }, 1200);
+  }, []);
+
   const handleAssignExercise = useCallback(async () => {
     if (!selectedStudentId) {
       window.alert('Seleziona uno studente.');
@@ -154,7 +173,14 @@ export default function StudentsPage(): JSX.Element {
         window.alert('Errore nell\'assegnazione dell\'esercizio.');
         return;
       }
+      const assignedStudent =
+        students.find((student) => student.id === selectedStudentId) ?? null;
+      const assignedPattern =
+        patterns.find((pattern) => pattern.id === selectedPatternId) ?? null;
       setAssignmentMessage('');
+      showActionPopup(
+        `✅ Esercizio ${assignedPattern?.name ?? ''} assegnato`,
+      );
       await loadExercises();
     } finally {
       setAssignmentStatus('idle');
@@ -162,12 +188,17 @@ export default function StudentsPage(): JSX.Element {
   }, [
     assignmentMessage,
     loadExercises,
+    patterns,
     selectedPatternId,
     selectedStudentId,
+    showActionPopup,
+    students,
   ]);
 
   const handleRemoveExercise = useCallback(
     async (exerciseId: string) => {
+      const exercise =
+        exercises.find((item) => item.id === exerciseId) ?? null;
       const confirmed = window.confirm(
         'Vuoi rimuovere questo esercizio dallo studente?'
       );
@@ -189,8 +220,11 @@ export default function StudentsPage(): JSX.Element {
         setMessageEditError('');
       }
       await loadExercises();
+      showActionPopup(
+        `✅ 'Esercizio' ${exercise?.patternName ?? ''} rimosso`,
+      );
     },
-    [editingExerciseId, loadExercises]
+    [editingExerciseId, exercises, loadExercises, showActionPopup]
   );
 
   const handleStartEditMessage = useCallback(
@@ -275,6 +309,14 @@ export default function StudentsPage(): JSX.Element {
   const handleCloseInviteModal = useCallback(() => {
     setShowInviteModal(false);
     setShowCopyNotice(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (popupTimeoutRef.current) {
+        window.clearTimeout(popupTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -484,16 +526,27 @@ export default function StudentsPage(): JSX.Element {
                       placeholder="Messaggio per lo studente"
                     />
                   </label>
-                  <button
-                    type="button"
-                    className="page-action-button"
-                    onClick={handleAssignExercise}
-                    disabled={assignmentStatus === 'loading'}
-                  >
-                    {assignmentStatus === 'loading'
-                      ? 'Assegnazione...'
-                      : 'Assegna esercizio'}
-                  </button>
+                  <div className="assignment-action-row">
+                    <button
+                      type="button"
+                      className="page-action-button"
+                      onClick={handleAssignExercise}
+                      disabled={assignmentStatus === 'loading'}
+                    >
+                      {assignmentStatus === 'loading'
+                        ? 'Assegnazione...'
+                        : 'Assegna esercizio'}
+                    </button>
+                    {actionPopup ? (
+                      <div
+                        className="action-popup action-popup--success action-popup--inline"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        {actionPopup}
+                      </div>
+                    ) : null}
+                  </div>
                 </>
               )}
             </div>
@@ -565,7 +618,9 @@ export default function StudentsPage(): JSX.Element {
                               <button
                                 type="button"
                                 className="text-button"
-                                onClick={() => handleRemoveExercise(exercise.id)}
+                                onClick={() =>
+                                  handleRemoveExercise(exercise.id)
+                                }
                                 disabled={messageEditStatus === 'saving'}
                               >
                                 Rimuovi
@@ -609,7 +664,9 @@ export default function StudentsPage(): JSX.Element {
                           <button
                             type="button"
                             className="text-button"
-                            onClick={() => handleRemoveExercise(exercise.id)}
+                            onClick={() =>
+                              handleRemoveExercise(exercise.id)
+                            }
                           >
                             Rimuovi
                           </button>
