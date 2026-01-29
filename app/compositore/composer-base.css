@@ -193,7 +193,7 @@
 }
 
 .exercise-select select,
-.exercise-name-input {
+.melody-name-input {
   border: 1px solid #cbd5f5;
   border-radius: var(--composer-control-radius);
   padding: 0 0.75rem;
