@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type MutableRefObject } from 'react';
+import { AudioControlBar } from './AudioControlBar';
 
 type PlaybackControlsProps = {
   isPitchReady: boolean;
@@ -82,6 +83,7 @@ export function PlaybackControls({
     }
   };
 
+
   return (
     <fieldset style={{ marginTop: '16px' }}>
       <legend>Modalità e riproduzione</legend>
@@ -143,35 +145,15 @@ export function PlaybackControls({
         </div>
       </div>
 
-      <div className="audio-loop-row">
-        <audio
-          key={audioUrl ?? 'audio-player'}
-          ref={audioElementRef}
-          controls
-          loop={playMode === 'loop'}
-          src={audioUrl ?? undefined}
-          aria-label={
-            sequenceDescription
-              ? `Sequenza: ${sequenceDescription}`
-              : 'Audio generato'
-          }
-          className="audio-loop-player"
-        />
-        <button
-          className={`secondary-button loop-button${
-            playMode === 'loop' ? ' active' : ''
-          }`}
-          type="button"
-          aria-pressed={playMode === 'loop'}
-          onClick={handleLoopClick}
-          aria-label={
-            playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'
-          }
-          title={playMode === 'loop' ? 'Ripeti attivo' : 'Attiva ripetizione'}
-        >
-          🔁
-        </button>
-      </div>
+      <AudioControlBar
+        audioElementRef={audioElementRef}
+        audioUrl={audioUrl}
+        isAudioPlaying={isAudioPlaying}
+        playMode={playMode}
+        onToggleLoop={handleLoopClick}
+        sequenceDescription={sequenceDescription}
+        hasAudio={hasAudio}
+      />
       <p
         style={{
           margin: '8px 0 0',

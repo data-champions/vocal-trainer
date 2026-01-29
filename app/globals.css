@@ -524,8 +524,9 @@ button:disabled {
 
 .audio-loop-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   margin-top: 8px;
 }
 
@@ -537,29 +538,185 @@ button:disabled {
   height: 44px;
 }
 
-.loop-button {
-  padding: 0;
-  min-width: 48px;
-  min-height: 48px;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  font-size: 1.45rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  align-self: center;
-  vertical-align: middle;
-  position: relative;
-  top: 8px;
+.audio-loop-player--hidden {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.loop-button.active {
+.audio-control-bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: 'left progress right';
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.audio-control-left {
+  grid-area: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.audio-control-progress {
+  grid-area: progress;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.audio-control-right {
+  grid-area: right;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.audio-control-button {
+  min-width: 40px;
+  min-height: 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.audio-control-button:hover {
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.audio-loop-toggle.active {
   background: linear-gradient(135deg, #22d3ee, #38bdf8);
   color: #0b0c10;
   border: 1px solid rgba(34, 211, 238, 0.8);
-  transform: translateY(-1px);
+}
+
+.audio-speed-button {
+  min-width: 60px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.audio-speed-button:hover {
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.audio-volume-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  position: relative;
+}
+
+.audio-volume-trigger {
+  font-size: 1.05rem;
+}
+
+.audio-volume-popup {
+  position: relative;
+}
+
+.audio-volume-panel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translate(-50%, -6px);
+  width: min(200px, 70vw);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.95);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 10;
+}
+
+.audio-volume-panel.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.audio-volume-label {
+  display: block;
+  font-size: 0.8rem;
+  color: #cbd5f5;
+  margin-bottom: 6px;
+}
+
+.audio-volume-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: rgba(203, 213, 245, 0.75);
+  margin-top: 4px;
+}
+
+.audio-control-bar input[type='range'].audio-range {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.audio-progress-range {
+  flex: 1;
+  accent-color: #ef4444;
+}
+
+.audio-volume-range {
+  accent-color: #cbd5f5;
+}
+
+.audio-time {
+  min-width: 44px;
+  font-size: 0.85rem;
+  color: #cbd5f5;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .audio-control-bar {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'progress progress'
+      'left right';
+    row-gap: 10px;
+  }
+
+  .audio-volume-panel {
+    left: 0;
+    transform: translate(0, -6px);
+  }
+
+  .audio-volume-panel.is-open {
+    transform: translate(0, 0);
+  }
 }
 
 .note-display {
