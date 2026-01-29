@@ -486,13 +486,29 @@ button:disabled {
   min-width: 0;
   width: 100%;
   padding: 6px 6px;
-  font-size: 1rem;
+  font-size: 1.1rem;
+  min-height: 44px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+
+.note-step-arrow {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.note-step-label {
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .base-note-row {
   display: grid;
-  grid-template-columns: 3fr 1fr;
+  grid-template-columns: 2.8fr 1.2fr;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
@@ -518,6 +534,7 @@ button:disabled {
   min-width: 0;
   display: block;
   align-self: center;
+  height: 44px;
 }
 
 .loop-button {
