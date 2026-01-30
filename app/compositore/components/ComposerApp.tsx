@@ -13,6 +13,7 @@ import {
 import interact from "interactjs";
 import { encodeWav } from "../../../lib/audio";
 import { GAP_SECONDS } from "../../../lib/constants";
+import { useRafLoop } from "../../../lib/hooks/common";
 import { NOTE_NAMES } from "../../../lib/notes";
 import { renderPianoMelody, type PianoNoteEvent } from "../../../lib/piano";
 import type { Pattern, PatternScore } from "../../../lib/types";
@@ -101,6 +102,12 @@ const durationToSymbol: Record<NoteDuration, string> = {
   quarter: "q",
   eighth: "8",
   sixteenth: "16"
+};
+
+type PlaybackSegmentWithId = {
+  noteId: string;
+  start: number;
+  end: number;
 };
 
 type ParsedPitch = {
@@ -311,18 +318,35 @@ const buildScoreSignature = (
   notes: NoteModel[]
 ) => JSON.stringify(buildScorePayload(name, clef, notes));
 
-const buildPlaybackNotes = (notes: NoteModel[]): PianoNoteEvent[] => {
+const buildPlaybackSequence = (notes: NoteModel[]) => {
   const sortedNotes = [...notes].sort(
     (a, b) => noteSortValue(a) - noteSortValue(b)
   );
+  let cursor = 0;
+  const schedule: PlaybackSegmentWithId[] = [];
 
-  return sortedNotes
-    .map((note) => ({
-      note: midiToToneNote(note.midi ?? 60),
-      durationSeconds:
-        (durationToBeats[note.duration] ?? 1) * SECONDS_PER_BEAT,
-    }))
-    .filter((note) => note.note && note.durationSeconds > 0);
+  const events = sortedNotes
+    .map((note) => {
+      const durationSeconds =
+        (durationToBeats[note.duration] ?? 1) * SECONDS_PER_BEAT;
+      if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        return null;
+      }
+      const noteName = midiToToneNote(note.midi ?? 60);
+      schedule.push({
+        noteId: note.id,
+        start: cursor,
+        end: cursor + durationSeconds
+      });
+      cursor += durationSeconds + GAP_SECONDS;
+      return {
+        note: noteName,
+        durationSeconds
+      };
+    })
+    .filter((note): note is PianoNoteEvent => Boolean(note));
+
+  return { events, schedule };
 };
 
 const buildMidiFile = (notes: Array<NoteModel>) => {
@@ -712,6 +736,9 @@ export default function ComposerApp() {
   const [playMode, setPlayMode] = useState<"single" | "loop">("single");
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoplayRef = useRef(false);
+  const playbackScheduleRef = useRef<PlaybackSegmentWithId[] | null>(null);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const activeNoteIdRef = useRef<string | null>(null);
   const [previewLines, setPreviewLines] = useState<DropzonePreviewLine[]>([]);
   const dropzoneWidth = useMemo(() => {
     const maxNoteX = placedNotes.reduce((max, note) => {
@@ -973,20 +1000,26 @@ export default function ComposerApp() {
       return;
     }
 
-    const playbackNotes = buildPlaybackNotes(placedNotes);
-    if (playbackNotes.length === 0) {
+    const playbackSequence = buildPlaybackSequence(placedNotes);
+    if (playbackSequence.events.length === 0) {
       window.alert("Nessuna nota valida da riprodurre.");
       return;
     }
-
     setIsRenderingAudio(true);
     try {
-      const rendering = await renderPianoMelody(playbackNotes, GAP_SECONDS);
+      const rendering = await renderPianoMelody(
+        playbackSequence.events,
+        GAP_SECONDS
+      );
       if (!rendering || rendering.samples.length === 0) {
         window.alert("Nessun audio generato.");
+        playbackScheduleRef.current = null;
+        setActiveNoteId(null);
         return;
       }
 
+      playbackScheduleRef.current = playbackSequence.schedule;
+      setActiveNoteId(null);
       const wavBuffer = encodeWav(rendering.samples, rendering.sampleRate, 1);
       const blob = new Blob([wavBuffer], { type: "audio/wav" });
       const url = URL.createObjectURL(blob);
@@ -1000,6 +1033,8 @@ export default function ComposerApp() {
     } catch (error) {
       console.error("Errore nella riproduzione del pianoforte", error);
       window.alert("Errore nella riproduzione del pianoforte.");
+      playbackScheduleRef.current = null;
+      setActiveNoteId(null);
     } finally {
       setIsRenderingAudio(false);
     }
@@ -1201,6 +1236,36 @@ export default function ComposerApp() {
       }
     };
   }, [audioUrl]);
+
+  useEffect(() => {
+    activeNoteIdRef.current = activeNoteId;
+  }, [activeNoteId]);
+
+  useEffect(() => {
+    if (!audioUrl) {
+      playbackScheduleRef.current = null;
+      setActiveNoteId(null);
+    }
+  }, [audioUrl]);
+
+  useRafLoop(() => {
+    const audioEl = audioElementRef.current;
+    const schedule = playbackScheduleRef.current;
+    if (!audioEl || !schedule || schedule.length === 0 || audioEl.paused) {
+      if (activeNoteIdRef.current !== null) {
+        setActiveNoteId(null);
+      }
+      return;
+    }
+    const time = audioEl.currentTime;
+    const segment = schedule.find(
+      (entry) => time >= entry.start && time <= entry.end
+    );
+    const nextId = segment ? segment.noteId : null;
+    if (activeNoteIdRef.current !== nextId) {
+      setActiveNoteId(nextId);
+    }
+  }, true);
 
   useEffect(() => {
     interact(".draggable").draggable({
@@ -1569,7 +1634,13 @@ export default function ComposerApp() {
                     <div
                       key={note.id}
                       id={note.id}
-                      className={`note draggable dropped-note${note.outOfStaff ? " is-outside-staff" : ""}`}
+                      className={`note draggable dropped-note${
+                        note.outOfStaff ? " is-outside-staff" : ""
+                      }${
+                        isAudioPlaying && note.id === activeNoteId
+                          ? " is-playing"
+                          : ""
+                      }`}
                       data-duration={note.duration}
                       style={{
                         left: `${note.x ?? note.beat * NOTE_STEP}px`,
