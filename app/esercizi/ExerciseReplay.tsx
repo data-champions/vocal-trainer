@@ -68,6 +68,10 @@ type PreparedNote = {
   start: number;
 };
 
+type PlaybackSegmentWithIndex = PlaybackSegment & {
+  noteIndex: number;
+};
+
 const parsePitchToMidi = (pitch: string | undefined) => {
   if (!pitch) {
     return null;
@@ -134,12 +138,17 @@ export default function ExerciseReplay({
   const [currentTargetFrequency, setCurrentTargetFrequency] =
     useState<number | null>(null);
   const [currentTargetNote, setCurrentTargetNote] = useState("");
+  const [currentTargetNoteIndex, setCurrentTargetNoteIndex] = useState<
+    number | null
+  >(null);
 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
-  const playbackScheduleRef = useRef<PlaybackSegment[] | null>(null);
+  const playbackScheduleRef = useRef<PlaybackSegmentWithIndex[] | null>(null);
   const lastScheduleNoteRef = useRef<string | null>(null);
+  const lastScheduleIndexRef = useRef<number | null>(null);
   const currentTargetFrequencyRef = useRef<number | null>(null);
   const currentTargetNoteRef = useRef<string>("");
+  const currentTargetNoteIndexRef = useRef<number | null>(null);
 
   useEffect(() => {
     setTranspose(0);
@@ -209,17 +218,17 @@ export default function ExerciseReplay({
     if (preparedNotes.length === 0) {
       return {
         events: [] as PianoNoteEvent[],
-        schedule: [] as PlaybackSegment[],
+        schedule: [] as PlaybackSegmentWithIndex[],
         sequenceNotes: [] as string[]
       };
     }
     const secondsPerBeat = 60 / tempo;
     let cursor = 0;
     const events: PianoNoteEvent[] = [];
-    const schedule: PlaybackSegment[] = [];
+    const schedule: PlaybackSegmentWithIndex[] = [];
     const sequenceNotes: string[] = [];
 
-    preparedNotes.forEach((note) => {
+    preparedNotes.forEach((note, index) => {
       const midi = note.midi + transpose;
       if (midi < MIDI_A0 || midi > MIDI_C8) {
         return;
@@ -230,7 +239,12 @@ export default function ExerciseReplay({
       }
       const noteName = midiToToneNote(midi);
       events.push({ note: noteName, durationSeconds });
-      schedule.push({ note: noteName, start: cursor, end: cursor + durationSeconds });
+      schedule.push({
+        note: noteName,
+        start: cursor,
+        end: cursor + durationSeconds,
+        noteIndex: index
+      });
       sequenceNotes.push(noteName);
       cursor += durationSeconds + GAP_SECONDS;
     });
@@ -317,8 +331,10 @@ export default function ExerciseReplay({
     if (sequenceData.events.length === 0) {
       playbackScheduleRef.current = null;
       lastScheduleNoteRef.current = null;
+      lastScheduleIndexRef.current = null;
       setCurrentTargetNote("");
       setCurrentTargetFrequency(null);
+      setCurrentTargetNoteIndex(null);
       setAudioUrl((prev) => {
         if (prev) {
           URL.revokeObjectURL(prev);
@@ -332,6 +348,7 @@ export default function ExerciseReplay({
 
     playbackScheduleRef.current = sequenceData.schedule;
     lastScheduleNoteRef.current = null;
+    lastScheduleIndexRef.current = null;
 
     renderPianoMelody(sequenceData.events, GAP_SECONDS)
       .then((rendering) => {
@@ -411,6 +428,10 @@ export default function ExerciseReplay({
     currentTargetNoteRef.current = currentTargetNote;
   }, [currentTargetNote]);
 
+  useEffect(() => {
+    currentTargetNoteIndexRef.current = currentTargetNoteIndex;
+  }, [currentTargetNoteIndex]);
+
   useRafLoop(() => {
     const audioEl = audioElementRef.current;
     const schedule = playbackScheduleRef.current;
@@ -424,9 +445,16 @@ export default function ExerciseReplay({
         setCurrentTargetNote(nextNote);
       }
     };
+    const applyActiveIndex = (noteIndex: number | null) => {
+      if (currentTargetNoteIndexRef.current !== noteIndex) {
+        setCurrentTargetNoteIndex(noteIndex);
+      }
+    };
     if (!audioEl || !schedule || schedule.length === 0) {
       lastScheduleNoteRef.current = null;
+      lastScheduleIndexRef.current = null;
       applyTarget(selectedNoteRef.current || null);
+      applyActiveIndex(null);
     } else {
       const time = audioEl.currentTime;
       const segment = schedule.find(
@@ -434,11 +462,14 @@ export default function ExerciseReplay({
       );
       if (segment) {
         lastScheduleNoteRef.current = segment.note;
+        lastScheduleIndexRef.current = segment.noteIndex;
         applyTarget(segment.note);
+        applyActiveIndex(segment.noteIndex);
       } else {
         const fallbackNote =
           lastScheduleNoteRef.current ?? selectedNoteRef.current ?? null;
         applyTarget(fallbackNote);
+        applyActiveIndex(null);
       }
     }
   }, true);
@@ -536,6 +567,7 @@ export default function ExerciseReplay({
   }, [audioUrl, currentTargetFrequency, pitchStatus, voiceFrequency]);
 
   const isPitchReady = pitchStatus === "ready";
+  const activeNoteIndex = isAudioPlaying ? currentTargetNoteIndex : null;
 
   return (
     <div>
@@ -548,7 +580,7 @@ export default function ExerciseReplay({
           {item.message}
         </p>
       ) : null}
-      <ScoreViewer score={displayScore} />
+      <ScoreViewer score={displayScore} activeNoteIndex={activeNoteIndex} />
 
       <PlaybackControls
         isPitchReady={isPitchReady}

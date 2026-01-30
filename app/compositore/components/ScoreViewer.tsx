@@ -65,6 +65,7 @@ type SerializedScore = {
 
 type ScoreViewerProps = {
   score: SerializedScore | string | null;
+  activeNoteIndex?: number | null;
 };
 
 type LayoutMetrics = {
@@ -75,6 +76,7 @@ type LayoutMetrics = {
 
 type LayoutNote = {
   id: string;
+  sequenceIndex: number;
   duration: NoteDuration;
   x: number;
   y: number;
@@ -190,7 +192,10 @@ const applyMinimumSpacing = <T extends { x: number }>(
   });
 };
 
-export default function ScoreViewer({ score }: ScoreViewerProps) {
+export default function ScoreViewer({
+  score,
+  activeNoteIndex = null
+}: ScoreViewerProps) {
   const staffRef = useRef<HTMLDivElement | null>(null);
   const [layout, setLayout] = useState<LayoutMetrics>({
     slotStep: DEFAULT_SLOT_STEP,
@@ -274,6 +279,7 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
 
       return {
         id: `note-${index}`,
+        sequenceIndex: index,
         duration,
         x,
         y,
@@ -320,7 +326,7 @@ export default function ScoreViewer({ score }: ScoreViewerProps) {
                   key={note.id}
                   className={`note dropped-note${
                     note.outOfStaff ? " is-outside-staff" : ""
-                  }`}
+                  }${note.sequenceIndex === activeNoteIndex ? " is-playing" : ""}`}
                   style={{
                     left: `${note.x}px`,
                     top: `${note.y}px`

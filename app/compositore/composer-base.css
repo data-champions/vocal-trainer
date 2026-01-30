@@ -294,6 +294,10 @@
   box-shadow: none;
 }
 
+.note.is-playing {
+  color: #2563eb;
+}
+
 .note svg {
   pointer-events: none;
 }
