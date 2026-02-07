@@ -13,12 +13,10 @@ const teacherItems: NavItem[] = [
   { label: 'Esercizi', href: '/esercizi' },
   { label: 'Compositore', href: '/compositore' },
   { label: 'Studenti', href: '/students' },
-  { label: 'Esercizi base', href: '/' },
 ];
 
 const studentItems: NavItem[] = [
   { label: 'I miei esercizi', href: '/esercizi' },
-  { label: 'Esercizi base', href: '/' },
 ];
 
 export function Navbar(): JSX.Element | null {
