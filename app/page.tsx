@@ -47,7 +47,7 @@ export default function HomePage(): JSX.Element {
           </h1>
           <p className="landing-subtitle">
             Allenati ogni giorno con un metodo chiaro, costruito insieme al tuo
-            maestro. Tutto in un'unica pagina, pronto per la tua voce.
+            maestro. Tutto in un&apos;unica pagina, pronto per la tua voce.
           </p>
         </div>
         <div className="landing-hero__badge">
@@ -75,7 +75,7 @@ export default function HomePage(): JSX.Element {
           <h2 className="landing-card__title"> 🎤 Intonazione in tempo reale</h2>
           <p className="landing-card__text">
             Con auricolari o cuffie vedi subito quanto la tua voce è vicina alla
-            nota giusta. Correggi l'intonazione mentre canti e senti il
+            nota giusta. Correggi l&apos;intonazione mentre canti e senti il
             miglioramento in pochi minuti.
           </p>
         </article>
