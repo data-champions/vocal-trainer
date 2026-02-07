@@ -20,13 +20,11 @@ const teacherTabs: TabConfig[] = [
   { label: 'Esercizi', href: '/esercizi' },
   { label: 'Compositore', href: '/compositore' },
   { label: 'Studenti', href: '/students' },
-  { label: 'Esercizi base', href: '/' },
 ];
 
 const studentTabs: TabConfig[] = [
   { label: 'Profilo', href: '/profile' },
   { label: 'I miei esercizi', href: '/esercizi' },
-  { label: 'Esercizi base', href: '/' },
 ];
 
 function resolveTabs(role: UserRole | null) {
