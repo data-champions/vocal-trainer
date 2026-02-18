@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { ObjectId } from 'mongodb';
 import clientPromise from '../../lib/mongodb';
+import AdminAnalyticsClient from './AdminAnalyticsClient';
 
 type SearchParams = {
   teacherId?: string;
@@ -204,6 +205,14 @@ export default async function AdminPage({
           </form>
         </fieldset>
       ) : null}
+
+      <fieldset>
+        <legend>📈 Analitica (DEV)</legend>
+        <AdminAnalyticsClient
+          teachers={teacherOptions}
+          initialTeacherId={selectedTeacherId}
+        />
+      </fieldset>
 
       {selectedTeacher && hasStudentSelection && !isValidStudentId ? (
         <p>Student id non valido.</p>

@@ -96,6 +96,9 @@ const parseRawLimit = (value: string | null) => {
   return Math.min(Math.floor(parsed), MAX_RAW_LIMIT);
 };
 
+const isDevOverrideEnabled = () =>
+  process.env.NODE_ENV === 'development' && process.env.IS_DEV === 'true';
+
 export async function POST(request: NextRequest) {
   const auth = await getAuthContext(request);
   if ('error' in auth) {
@@ -157,11 +160,29 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error.message }, { status: auth.error.status });
   }
-  if (!auth.isTeacher) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
 
   const { searchParams } = new URL(request.url);
+  const teacherIdParam = searchParams.get('teacherId');
+  const devOverride = isDevOverrideEnabled();
+
+  if (teacherIdParam && !devOverride) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (!auth.isTeacher && !devOverride) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (!auth.isTeacher && devOverride && !teacherIdParam) {
+    return NextResponse.json({ error: 'Teacher id required' }, { status: 400 });
+  }
+  if (teacherIdParam && !ObjectId.isValid(teacherIdParam)) {
+    return NextResponse.json({ error: 'Invalid teacher id' }, { status: 400 });
+  }
+
+  const effectiveTeacherId =
+    teacherIdParam && devOverride
+      ? new ObjectId(teacherIdParam)
+      : auth.userId;
+
   const interval = parseInterval(searchParams.get('interval'));
   const rangeSetting = parseRange(searchParams.get('range'));
   const rawLimit = parseRawLimit(searchParams.get('rawLimit'));
@@ -186,7 +207,7 @@ export async function GET(request: NextRequest) {
       : new Date(now.getTime() - rangeSetting.days * 24 * 60 * 60 * 1000);
 
   const match: Record<string, unknown> = {
-    teacherId: auth.userId,
+    teacherId: effectiveTeacherId,
   };
 
   if (studentIdParam) {
@@ -207,7 +228,7 @@ export async function GET(request: NextRequest) {
 
   const studentLinks = await db
     .collection('students')
-    .find({ teacherId: auth.userId })
+    .find({ teacherId: effectiveTeacherId })
     .project({ studentId: 1 })
     .toArray();
 

@@ -1,24 +1,46 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { ObjectId } from 'mongodb';
 import clientPromise from '../../../lib/mongodb';
 import { getAuthContext } from '../../../lib/api/auth';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+const isDevOverrideEnabled = () =>
+  process.env.NODE_ENV === 'development' && process.env.IS_DEV === 'true';
+
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext(request);
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error.message }, { status: auth.error.status });
   }
-  if (!auth.isTeacher) {
+  const { searchParams } = new URL(request.url);
+  const teacherIdParam = searchParams.get('teacherId');
+  const devOverride = isDevOverrideEnabled();
+
+  if (teacherIdParam && !devOverride) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  if (!auth.isTeacher && !devOverride) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (!auth.isTeacher && devOverride && !teacherIdParam) {
+    return NextResponse.json({ error: 'Teacher id required' }, { status: 400 });
+  }
+  if (teacherIdParam && !ObjectId.isValid(teacherIdParam)) {
+    return NextResponse.json({ error: 'Invalid teacher id' }, { status: 400 });
+  }
+
+  const effectiveTeacherId =
+    teacherIdParam && devOverride
+      ? new ObjectId(teacherIdParam)
+      : auth.userId;
 
   const client = await clientPromise;
   const db = client.db();
   const patterns = await db
     .collection('patterns')
-    .find({ teacherId: auth.userId })
+    .find({ teacherId: effectiveTeacherId })
     .sort({ updatedAt: -1, createdAt: -1 })
     .toArray();
 

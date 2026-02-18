@@ -31,11 +31,60 @@ export function AudioControlBar({
 }: AudioControlBarProps): JSX.Element {
   const isSeekingRef = useRef(false);
   const volumePopupRef = useRef<HTMLDivElement | null>(null);
+  const volumeRef = useRef(1);
+  const playbackRateRef = useRef(1);
   const [volume, setVolume] = useState(1);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const storageReadyRef = useRef(false);
+
+  const clamp = (value: number, min: number, max: number) =>
+    Math.min(Math.max(value, min), max);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const storedVolumeRaw = window.localStorage.getItem('cantami.audio.volume');
+    if (storedVolumeRaw !== null) {
+      const storedVolume = Number(storedVolumeRaw);
+      if (Number.isFinite(storedVolume)) {
+        setVolume(clamp(storedVolume, 0, 1));
+      }
+    }
+    const storedRateRaw = window.localStorage.getItem('cantami.audio.rate');
+    if (storedRateRaw !== null) {
+      const storedRate = Number(storedRateRaw);
+      if (Number.isFinite(storedRate)) {
+        setPlaybackRate(clamp(storedRate, 0.25, 2));
+      }
+    }
+    storageReadyRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    playbackRateRef.current = playbackRate;
+  }, [playbackRate]);
+
+  useEffect(() => {
+    if (!storageReadyRef.current || typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem('cantami.audio.volume', String(volume));
+  }, [volume]);
+
+  useEffect(() => {
+    if (!storageReadyRef.current || typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem('cantami.audio.rate', String(playbackRate));
+  }, [playbackRate]);
 
   useEffect(() => {
     const audioEl = audioElementRef.current;
@@ -70,6 +119,10 @@ export function AudioControlBar({
     const handleRateChange = () => {
       setPlaybackRate(audioEl.playbackRate || 1);
     };
+
+    audioEl.volume = volumeRef.current;
+    audioEl.muted = volumeRef.current === 0;
+    audioEl.playbackRate = playbackRateRef.current;
 
     handleLoadedMetadata();
     handleVolumeChange();
