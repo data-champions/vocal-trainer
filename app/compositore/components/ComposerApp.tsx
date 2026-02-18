@@ -9,6 +9,7 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
 import interact from "interactjs";
@@ -750,6 +751,7 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
   const [placedNotes, setPlacedNotes] = useState<NoteModel[]>([]);
   const hasNotes = placedNotes.length > 0;
   const trimmedPatternName = patternName.trim();
+  const hasPatternName = trimmedPatternName.length > 0;
   const sortedPatterns = useMemo(
     () =>
       [...patterns].sort((left, right) =>
@@ -764,6 +766,17 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
   const melodyLabel =
     selectedPattern?.name || trimmedPatternName || MELODY_PLACEHOLDER;
   const isMelodyPlaceholder = melodyLabel === MELODY_PLACEHOLDER;
+  const saveMelodyIssues = useMemo(() => {
+    const issues: string[] = [];
+    if (!hasPatternName) {
+      issues.push("Dai un nome alla melodia.");
+    }
+    if (!hasNotes) {
+      issues.push("Aggiungi note al pentagramma.");
+    }
+    return issues;
+  }, [hasNotes, hasPatternName]);
+  const shouldShowSaveTooltip = saveMelodyIssues.length > 0;
   const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(
     null
   );
@@ -787,6 +800,8 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const activeNoteIdRef = useRef<string | null>(null);
   const [previewLines, setPreviewLines] = useState<DropzonePreviewLine[]>([]);
+  const [isSaveTooltipVisible, setIsSaveTooltipVisible] = useState(false);
+  const saveTooltipTimeoutRef = useRef<number | null>(null);
   const dropzoneWidth = useMemo(() => {
     const maxNoteX = placedNotes.reduce((max, note) => {
       const noteX = note.x ?? note.beat * NOTE_STEP;
@@ -889,6 +904,20 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
       patternNameInputRef.current?.focus();
     }
   }, [selectedPatternId]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTooltipTimeoutRef.current) {
+        window.clearTimeout(saveTooltipTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!shouldShowSaveTooltip) {
+      setIsSaveTooltipVisible(false);
+    }
+  }, [shouldShowSaveTooltip]);
 
   useEffect(() => {
     setIsSessionReady(false);
@@ -1306,6 +1335,43 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
     [selectedPatternId]
   );
 
+  const showSaveTooltip = useCallback(
+    (autoHide: boolean) => {
+      if (!shouldShowSaveTooltip) {
+        return;
+      }
+      setIsSaveTooltipVisible(true);
+      if (saveTooltipTimeoutRef.current) {
+        window.clearTimeout(saveTooltipTimeoutRef.current);
+      }
+      if (autoHide) {
+        saveTooltipTimeoutRef.current = window.setTimeout(() => {
+          setIsSaveTooltipVisible(false);
+        }, 2500);
+      }
+    },
+    [shouldShowSaveTooltip]
+  );
+
+  const hideSaveTooltip = useCallback(() => {
+    if (saveTooltipTimeoutRef.current) {
+      window.clearTimeout(saveTooltipTimeoutRef.current);
+    }
+    setIsSaveTooltipVisible(false);
+  }, []);
+
+  const handleSaveButtonClick = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      if (shouldShowSaveTooltip) {
+        event.preventDefault();
+        showSaveTooltip(true);
+        return;
+      }
+      void handleSaveMelody();
+    },
+    [handleSaveMelody, shouldShowSaveTooltip, showSaveTooltip]
+  );
+
   const handleDeletePattern = async () => {
     if (!selectedPatternId || !selectedPattern) {
       window.alert("Seleziona una melodia da eliminare.");
@@ -1660,14 +1726,39 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
               <option value="bass">Chiave di basso</option>
             </select>
           </div>
-          <button
-            type="button"
-            className="export-json"
-            onClick={handleSaveMelody}
-            disabled={!hasNotes}
+          <div
+            className="save-melody-wrapper"
+            onMouseEnter={() => showSaveTooltip(false)}
+            onMouseLeave={hideSaveTooltip}
+            onFocusCapture={() => showSaveTooltip(false)}
+            onBlurCapture={hideSaveTooltip}
           >
-            Salva melodia
-          </button>
+            <button
+              type="button"
+              className="export-json"
+              onClick={handleSaveButtonClick}
+              aria-describedby={
+                shouldShowSaveTooltip ? "save-melody-tooltip" : undefined
+              }
+              aria-disabled={shouldShowSaveTooltip}
+              data-disabled={shouldShowSaveTooltip}
+            >
+              Salva melodia
+            </button>
+            {shouldShowSaveTooltip && isSaveTooltipVisible ? (
+              <div
+                id="save-melody-tooltip"
+                className="save-melody-tooltip"
+                role="tooltip"
+              >
+                {saveMelodyIssues.map((issue) => (
+                  <p key={issue} className="save-melody-tooltip__line">
+                    {issue}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <button
             type="button"
             className="delete-pattern"

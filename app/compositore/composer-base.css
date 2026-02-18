@@ -358,9 +358,43 @@
   box-sizing: border-box;
 }
 
-.export-json:disabled {
+.export-json:disabled,
+.export-json[data-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.save-melody-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.save-melody-wrapper .export-json {
+  width: 100%;
+}
+
+.save-melody-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5f5;
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  font-size: 0.85rem;
+  color: #1e293b;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.save-melody-tooltip__line {
+  margin: 0;
+}
+
+.save-melody-tooltip__line + .save-melody-tooltip__line {
+  margin-top: 4px;
 }
 
 .delete-pattern {
