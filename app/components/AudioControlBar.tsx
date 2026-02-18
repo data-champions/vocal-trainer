@@ -14,6 +14,9 @@ type AudioControlBarProps = {
   isAudioPlaying: boolean;
   playMode: 'single' | 'loop';
   onToggleLoop: () => void;
+  onRequestPlay?: () => boolean;
+  playDisabled?: boolean;
+  playTooltipId?: string;
   sequenceDescription?: string;
   hasAudio: boolean;
   ariaLabel?: string;
@@ -25,6 +28,9 @@ export function AudioControlBar({
   isAudioPlaying,
   playMode,
   onToggleLoop,
+  onRequestPlay,
+  playDisabled,
+  playTooltipId,
   sequenceDescription,
   hasAudio,
   ariaLabel,
@@ -200,6 +206,9 @@ export function AudioControlBar({
       return;
     }
     if (audioEl.paused) {
+      if (onRequestPlay && !onRequestPlay()) {
+        return;
+      }
       void audioEl.play();
     } else {
       audioEl.pause();
@@ -258,6 +267,8 @@ export function AudioControlBar({
   const audioLabel = sequenceDescription
     ? `Sequenza: ${sequenceDescription}`
     : ariaLabel ?? 'Audio generato';
+  const isPlayDisabled = Boolean(playDisabled);
+  const playButtonDisabled = !hasAudio || isPlayDisabled;
 
   return (
     <div className="audio-loop-row">
@@ -277,7 +288,9 @@ export function AudioControlBar({
             onClick={handlePlayToggle}
             aria-label={isAudioPlaying ? 'Pausa' : 'Riproduci'}
             title={isAudioPlaying ? 'Pausa' : 'Riproduci'}
-            disabled={!hasAudio}
+            aria-describedby={isPlayDisabled ? playTooltipId : undefined}
+            aria-disabled={isPlayDisabled}
+            disabled={playButtonDisabled}
           >
             {isAudioPlaying ? '⏸' : '▶'}
           </button>
