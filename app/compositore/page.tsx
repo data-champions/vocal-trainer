@@ -6,6 +6,10 @@ import ComposerApp from './components/ComposerApp';
 export default function CompositorePage(): JSX.Element {
   const { data: session, status } = useSession();
   const isTeacher = session?.user?.isTeacher ?? false;
+  const sessionMarker =
+    status === 'authenticated'
+      ? `${session?.user?.email ?? 'anon'}|${session?.expires ?? ''}`
+      : null;
 
   const renderFallback = (message: string) => (
     <main>
@@ -32,7 +36,7 @@ export default function CompositorePage(): JSX.Element {
 
   return (
     <main>
-      <ComposerApp />
+      <ComposerApp sessionMarker={sessionMarker} />
     </main>
   );
 }

@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent
 } from "react";
@@ -30,6 +31,9 @@ const NOTE_GAP = NOTE_WIDTH * 0.25;
 const NOTE_STEP = NOTE_WIDTH + NOTE_GAP;
 const MIN_DROPZONE_WIDTH = NOTE_STEP * 128;
 const DROPZONE_TRAILING_SPACE = NOTE_STEP * 8;
+const MELODY_PLACEHOLDER = "Scegli melodia";
+const LAST_PATTERN_STORAGE_KEY = "vocal-trainer:last-pattern-id";
+const SESSION_MARKER_STORAGE_KEY = "vocal-trainer:compositore-session";
 const PPQ = 480;
 const DEFAULT_TEMPO_MICROS = 500000;
 const SECONDS_PER_BEAT = DEFAULT_TEMPO_MICROS / 1_000_000;
@@ -43,6 +47,33 @@ const TREBLE_BASE_SLOT = LEDGER_SLOT_COUNT + 6; // G line (second from bottom)
 const BASS_BASE_SLOT = LEDGER_SLOT_COUNT + 2; // F line (second from top)
 const TREBLE_INTERVALS = [2, 2, 1, 2, 2, 1, 2]; // G A B C D E F G
 const BASS_INTERVALS = [2, 2, 2, 1, 2, 2, 1]; // F G A B C D E F
+const NEW_PATTERN_LABEL = "Nuova melodia";
+
+const readLastPatternId = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.sessionStorage.getItem(LAST_PATTERN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const writeLastPatternId = (patternId: string | null) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    if (patternId) {
+      window.sessionStorage.setItem(LAST_PATTERN_STORAGE_KEY, patternId);
+    } else {
+      window.sessionStorage.removeItem(LAST_PATTERN_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors (private mode, disabled storage, etc.)
+  }
+};
 
 const SYMBOL_TO_DURATION: Record<string, NoteDuration> = {
   whole: "whole",
@@ -681,7 +712,11 @@ const computeDropHighlight = (event: DropEvent): DropzonePreviewLine[] => {
     .filter((value): value is DropzonePreviewLine => value !== null);
 };
 
-export default function ComposerApp() {
+type ComposerAppProps = {
+  sessionMarker?: string | null;
+};
+
+export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
   const [clef, setClef] = useState<"treble" | "bass">("treble");
   const clefSymbol = clef === "treble" ? "\uD834\uDD1E" : "\uD834\uDD22";
   const clefLabel = clef === "treble" ? "Chiave di violino" : "Chiave di basso";
@@ -695,7 +730,10 @@ export default function ComposerApp() {
   const [patternName, setPatternName] = useState("");
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
+  const [isMelodyMenuOpen, setIsMelodyMenuOpen] = useState(false);
   const patternNameInputRef = useRef<HTMLInputElement | null>(null);
+  const melodyMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isSessionReady, setIsSessionReady] = useState(false);
   const [selectedAccidental, setSelectedAccidental] =
     useState<NoteAccidental | null>(null);
   const staffRef = useRef<HTMLDivElement | null>(null);
@@ -712,11 +750,20 @@ export default function ComposerApp() {
   const [placedNotes, setPlacedNotes] = useState<NoteModel[]>([]);
   const hasNotes = placedNotes.length > 0;
   const trimmedPatternName = patternName.trim();
-  const hasPatternName = trimmedPatternName.length > 0;
+  const sortedPatterns = useMemo(
+    () =>
+      [...patterns].sort((left, right) =>
+        left.name.localeCompare(right.name, "it", { sensitivity: "base" })
+      ),
+    [patterns]
+  );
   const selectedPattern = useMemo(
     () => patterns.find((pattern) => pattern.id === selectedPatternId),
     [patterns, selectedPatternId]
   );
+  const melodyLabel =
+    selectedPattern?.name || trimmedPatternName || MELODY_PLACEHOLDER;
+  const isMelodyPlaceholder = melodyLabel === MELODY_PLACEHOLDER;
   const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(
     null
   );
@@ -844,6 +891,55 @@ export default function ComposerApp() {
   }, [selectedPatternId]);
 
   useEffect(() => {
+    setIsSessionReady(false);
+    if (typeof window === "undefined") {
+      setIsSessionReady(true);
+      return;
+    }
+    if (!sessionMarker) {
+      setIsSessionReady(true);
+      return;
+    }
+    try {
+      const storedMarker = window.sessionStorage.getItem(
+        SESSION_MARKER_STORAGE_KEY
+      );
+      if (storedMarker !== sessionMarker) {
+        window.sessionStorage.setItem(SESSION_MARKER_STORAGE_KEY, sessionMarker);
+        window.sessionStorage.removeItem(LAST_PATTERN_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage errors.
+    }
+    setIsSessionReady(true);
+  }, [sessionMarker]);
+
+  useEffect(() => {
+    if (!isMelodyMenuOpen) {
+      return;
+    }
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!melodyMenuRef.current) {
+        return;
+      }
+      if (!melodyMenuRef.current.contains(event.target as Node)) {
+        setIsMelodyMenuOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMelodyMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isMelodyMenuOpen]);
+
+  useEffect(() => {
     if (!isDirty) {
       return;
     }
@@ -957,15 +1053,23 @@ export default function ComposerApp() {
       const nextPatterns = Array.isArray(data.patterns) ? data.patterns : [];
       setPatterns(nextPatterns);
       setSelectedPatternId((prev) => {
-        const candidateId = preferredId ?? prev;
+        let candidateId: string | null = null;
+        if (typeof preferredId === "string") {
+          candidateId = preferredId;
+        } else if (preferredId === null) {
+          candidateId = null;
+        } else {
+          candidateId = readLastPatternId() ?? prev ?? null;
+        }
         const nextId =
           candidateId && nextPatterns.some((pattern) => pattern.id === candidateId)
             ? candidateId
-            : nextPatterns[0]?.id ?? null;
+            : null;
         const nextPattern = nextId
           ? nextPatterns.find((pattern) => pattern.id === nextId) ?? null
           : null;
         applyPattern(nextPattern);
+        writeLastPatternId(nextId);
         return nextId;
       });
     },
@@ -973,8 +1077,11 @@ export default function ComposerApp() {
   );
 
   useEffect(() => {
+    if (!isSessionReady) {
+      return;
+    }
     void refreshPatterns();
-  }, [refreshPatterns]);
+  }, [isSessionReady, refreshPatterns]);
 
   const handleExportMidi = () => {
     if (!hasNotes) {
@@ -1047,7 +1154,7 @@ export default function ComposerApp() {
     }
     const trimmedName = patternName.trim();
     if (!trimmedName) {
-      alert("Inserisci un nome per il pattern.");
+      window.alert("Date un nome alla melodia prima di salvarla.");
       return false;
     }
 
@@ -1141,28 +1248,62 @@ export default function ComposerApp() {
   }, [handleSaveMelody, isDirty, unsavedPromptMessage]);
 
   const handleSelectPattern = useCallback(
-    async (patternId: string) => {
+    async (patternId: string): Promise<boolean> => {
       const currentId = selectedPatternId ?? "";
       if (patternId === currentId) {
-        return;
+        writeLastPatternId(patternId || null);
+        return true;
       }
       const canProceed = await confirmUnsavedChanges();
       if (!canProceed) {
-        return;
+        return false;
       }
       if (!patternId) {
         setSelectedPatternId(null);
         applyPattern(null);
-        return;
+        writeLastPatternId(null);
+        return true;
       }
       const pattern = patterns.find((item) => item.id === patternId) ?? null;
       if (!pattern) {
-        return;
+        return false;
       }
       setSelectedPatternId(pattern.id);
       applyPattern(pattern);
+      writeLastPatternId(pattern.id);
+      return true;
     },
     [applyPattern, confirmUnsavedChanges, patterns, selectedPatternId]
+  );
+
+  const handleMenuSelectPattern = useCallback(
+    async (patternId: string) => {
+      const switched = await handleSelectPattern(patternId);
+      if (switched) {
+        setIsMelodyMenuOpen(false);
+      }
+    },
+    [handleSelectPattern]
+  );
+
+  const handleNewMelodyFocus = useCallback(async () => {
+    if (selectedPatternId === null) {
+      return;
+    }
+    const switched = await handleSelectPattern("");
+    if (!switched) {
+      setIsMelodyMenuOpen(false);
+    }
+  }, [handleSelectPattern, selectedPatternId]);
+
+  const handleNewMelodyChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      if (selectedPatternId !== null) {
+        return;
+      }
+      setPatternName(event.target.value);
+    },
+    [selectedPatternId]
   );
 
   const handleDeletePattern = async () => {
@@ -1446,35 +1587,68 @@ export default function ComposerApp() {
       </div>
       <div className="palette">
         <div className="palette-controls">
-          <div className="exercise-select">
-            <select
-              value={selectedPatternId ?? ""}
-              onChange={(event) => {
-                void handleSelectPattern(event.target.value);
-              }}
-              aria-label="Seleziona pattern"
-              title="Seleziona pattern"
+          <div className="exercise-select" ref={melodyMenuRef}>
+            <button
+              type="button"
+              className="melody-select-toggle"
+              onClick={() =>
+                setIsMelodyMenuOpen((prev) => !prev)
+              }
+              aria-haspopup="listbox"
+              aria-expanded={isMelodyMenuOpen}
             >
-              <option value="">Nuova melodia</option>
-              {/* pattern=melodia */}
-              {patterns.map((pattern) => (
-                <option key={pattern.id} value={pattern.id}>
-                  {pattern.name}
-                </option>
-              ))}
-            </select>
+              <span
+                className={isMelodyPlaceholder ? "melody-select-placeholder" : undefined}
+              >
+                {melodyLabel}
+              </span>
+            </button>
+            {isMelodyMenuOpen ? (
+              <div
+                className="melody-select-menu"
+                role="listbox"
+                aria-label="Seleziona melodia"
+              >
+                <div className="melody-select-new">
+                  <label htmlFor="new-melody-name">{NEW_PATTERN_LABEL}</label>
+                  <input
+                    ref={patternNameInputRef}
+                    id="new-melody-name"
+                    type="text"
+                    className="melody-name-input melody-select-input"
+                    value={selectedPatternId === null ? patternName : ""}
+                    onFocus={handleNewMelodyFocus}
+                    onChange={handleNewMelodyChange}
+                    placeholder={NEW_PATTERN_LABEL}
+                    aria-label="Nome nuova melodia"
+                  />
+                </div>
+                <div className="melody-select-divider" role="presentation" />
+                <div className="melody-select-options">
+                  {sortedPatterns.length > 0 ? (
+                    sortedPatterns.map((pattern) => (
+                      <button
+                        key={pattern.id}
+                        type="button"
+                        className="melody-select-option"
+                        data-selected={pattern.id === selectedPatternId}
+                        aria-selected={pattern.id === selectedPatternId}
+                        onClick={() => {
+                          void handleMenuSelectPattern(pattern.id);
+                        }}
+                      >
+                        {pattern.name}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="melody-select-empty">
+                      Nessuna melodia salvata.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
-          {selectedPatternId === null ? (
-            <input
-              ref={patternNameInputRef}
-              type="text"
-              className="melody-name-input"
-              value={patternName}
-              onChange={(event) => setPatternName(event.target.value)}
-              placeholder="Nome melodia"
-              aria-label="Nome melodia"
-            />
-          ) : null}
           <div className="clef-toggle">
             <select
               value={clef}
@@ -1490,7 +1664,7 @@ export default function ComposerApp() {
             type="button"
             className="export-json"
             onClick={handleSaveMelody}
-            disabled={!hasNotes || !hasPatternName}
+            disabled={!hasNotes}
           >
             Salva melodia
           </button>

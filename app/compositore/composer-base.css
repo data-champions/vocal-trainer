@@ -74,6 +74,120 @@
   width: 100%;
 }
 
+.exercise-select {
+  position: relative;
+}
+
+.melody-select-toggle {
+  position: relative;
+  border: 1px solid #cbd5f5;
+  border-radius: var(--composer-control-radius);
+  padding: 0 2.25rem 0 0.75rem;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: var(--composer-control-font-size);
+  font-weight: 600;
+  height: var(--composer-control-height);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.melody-select-toggle::after {
+  content: "▾";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #475569;
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.melody-select-placeholder {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.melody-select-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #dbe2ea;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+  display: grid;
+  gap: 0.75rem;
+  z-index: 5;
+}
+
+.melody-select-new label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.melody-select-input {
+  padding-right: 0.75rem;
+}
+
+.melody-select-divider {
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.melody-select-options {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  align-items: start;
+  text-align: left;
+}
+
+.melody-select-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.melody-select-option:hover {
+  background: #f1f5f9;
+  border-color: #cbd5f5;
+}
+
+.melody-select-option[data-selected="true"] {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.melody-select-empty {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+}
+
 .palette-notes {
   display: flex;
   align-items: center;
