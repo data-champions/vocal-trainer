@@ -60,6 +60,9 @@ export type ReplayItem = {
   score: PatternScore | null;
   message?: string;
   meta?: string;
+  exerciseId?: string;
+  patternId?: string;
+  studentId?: string;
 };
 
 type PreparedNote = {
@@ -126,7 +129,7 @@ export default function ExerciseReplay({
   item: ReplayItem;
 }) {
   const notationMode = DEFAULT_NOTATION_MODE;
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const [vocalRange, setVocalRange] =
     useState<VocalRangeKey>(DEFAULT_VOCAL_RANGE);
   const [transpose, setTranspose] = useState(0);
@@ -149,6 +152,68 @@ export default function ExerciseReplay({
   const currentTargetFrequencyRef = useRef<number | null>(null);
   const currentTargetNoteRef = useRef<string>("");
   const currentTargetNoteIndexRef = useRef<number | null>(null);
+  const isTeacher = session?.user?.isTeacher ?? false;
+  const canLogListen =
+    status === "authenticated" && !isTeacher && Boolean(item.exerciseId);
+  const [showFeedbackTooltip, setShowFeedbackTooltip] = useState(false);
+
+  const getTodayKey = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const handlePlayRequest = useCallback(() => {
+    if (showFeedbackTooltip) {
+      return false;
+    }
+    if (typeof window === "undefined") {
+      return true;
+    }
+    const dismissed = window.localStorage.getItem(
+      "cantami.feedbackTooltip.dismissed"
+    );
+    if (dismissed === "true") {
+      return true;
+    }
+    const todayKey = getTodayKey();
+    const lastSeen = window.localStorage.getItem(
+      "cantami.feedbackTooltip.lastSeen"
+    );
+    if (lastSeen === todayKey) {
+      return true;
+    }
+    setShowFeedbackTooltip(true);
+    return false;
+  }, [showFeedbackTooltip]);
+
+  const dismissFeedbackTooltip = (rememberForever: boolean) => {
+    setShowFeedbackTooltip(false);
+    if (typeof window === "undefined") {
+      return;
+    }
+    const todayKey = getTodayKey();
+    window.localStorage.setItem("cantami.feedbackTooltip.lastSeen", todayKey);
+    if (rememberForever) {
+      window.localStorage.setItem("cantami.feedbackTooltip.dismissed", "true");
+    }
+  };
+
+  const logListen = useCallback(() => {
+    if (!canLogListen || !item.exerciseId) {
+      return;
+    }
+    void fetch("/api/listens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exerciseId: item.exerciseId,
+        semitoneShift: transpose
+      })
+    }).catch(() => {});
+  }, [canLogListen, item.exerciseId, transpose]);
 
   useEffect(() => {
     setTranspose(0);
@@ -398,7 +463,10 @@ export default function ExerciseReplay({
       setIsAudioPlaying(false);
       return;
     }
-    const handlePlay = () => setIsAudioPlaying(true);
+    const handlePlay = () => {
+      setIsAudioPlaying(true);
+      logListen();
+    };
     const handlePause = () => setIsAudioPlaying(false);
     const handleEnded = () => setIsAudioPlaying(false);
     audioEl.addEventListener("play", handlePlay);
@@ -410,7 +478,7 @@ export default function ExerciseReplay({
       audioEl.removeEventListener("pause", handlePause);
       audioEl.removeEventListener("ended", handleEnded);
     };
-  }, [audioUrl]);
+  }, [audioUrl, logListen]);
 
   useEffect(() => {
     return () => {
@@ -582,24 +650,58 @@ export default function ExerciseReplay({
       ) : null}
       <ScoreViewer score={displayScore} activeNoteIndex={activeNoteIndex} />
 
-      <PlaybackControls
-        isPitchReady={isPitchReady}
-        noiseThreshold={noiseThreshold}
-        onNoiseThresholdChange={setNoiseThreshold}
-        selectedNoteLabel={baseNoteLabel}
-        canStepDown={canStepDown}
-        canStepUp={canStepUp}
-        onHalfStep={handleHalfStep}
-        isAudioPlaying={isAudioPlaying}
-        playMode={playMode}
-        onToggleLoop={() =>
-          setPlayMode((prev) => (prev === "loop" ? "single" : "loop"))
-        }
-        audioElementRef={audioElementRef}
-        audioUrl={audioUrl}
-        sequenceDescription={sequenceDescription}
-        hasAudio={Boolean(audioUrl)}
-      />
+      <div className="feedback-tooltip-wrapper">
+        <PlaybackControls
+          isPitchReady={isPitchReady}
+          noiseThreshold={noiseThreshold}
+          onNoiseThresholdChange={setNoiseThreshold}
+          selectedNoteLabel={baseNoteLabel}
+          canStepDown={canStepDown}
+          canStepUp={canStepUp}
+          onHalfStep={handleHalfStep}
+          isAudioPlaying={isAudioPlaying}
+          playMode={playMode}
+          onToggleLoop={() =>
+            setPlayMode((prev) => (prev === "loop" ? "single" : "loop"))
+          }
+          onRequestPlay={handlePlayRequest}
+          playDisabled={showFeedbackTooltip}
+          playTooltipId={showFeedbackTooltip ? "feedback-tooltip" : undefined}
+          audioElementRef={audioElementRef}
+          audioUrl={audioUrl}
+          sequenceDescription={sequenceDescription}
+          hasAudio={Boolean(audioUrl)}
+        />
+
+        {showFeedbackTooltip ? (
+          <div
+            id="feedback-tooltip"
+            className="feedback-tooltip"
+            role="tooltip"
+          >
+            <p className="feedback-tooltip__text">
+              il grafico con feedback e&apos; affidabile solo se usi cuffie o
+              auricolari
+            </p>
+            <div className="feedback-tooltip__actions">
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => dismissFeedbackTooltip(false)}
+              >
+                ok ho capito
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => dismissFeedbackTooltip(true)}
+              >
+                ok, non mostrare piu&apos;
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <PitchStatus
         isPitchReady={isPitchReady}

@@ -14,6 +14,9 @@ type PlaybackControlsProps = {
   isAudioPlaying: boolean;
   playMode: 'single' | 'loop';
   onToggleLoop: () => void;
+  onRequestPlay?: () => boolean;
+  playDisabled?: boolean;
+  playTooltipId?: string;
   audioElementRef: MutableRefObject<HTMLAudioElement | null>;
   audioUrl: string | null;
   sequenceDescription: string;
@@ -31,6 +34,9 @@ export function PlaybackControls({
   isAudioPlaying,
   playMode,
   onToggleLoop,
+  onRequestPlay,
+  playDisabled,
+  playTooltipId,
   audioElementRef,
   audioUrl,
   sequenceDescription,
@@ -78,7 +84,7 @@ export function PlaybackControls({
 
   const handleLoopClick = () => {
     onToggleLoop();
-    if (audioUrl) {
+    if (audioUrl && isAudioPlaying) {
       shouldAutoPlayRef.current = true;
     }
   };
@@ -151,6 +157,9 @@ export function PlaybackControls({
         isAudioPlaying={isAudioPlaying}
         playMode={playMode}
         onToggleLoop={handleLoopClick}
+        onRequestPlay={onRequestPlay}
+        playDisabled={playDisabled}
+        playTooltipId={playTooltipId}
         sequenceDescription={sequenceDescription}
         hasAudio={hasAudio}
       />
