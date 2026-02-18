@@ -33,6 +33,120 @@ body {
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
 }
 
+.exercise-select {
+  position: relative;
+}
+
+.melody-select-toggle {
+  position: relative;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: var(--composer-control-radius);
+  padding: 0 2.25rem 0 0.75rem;
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+  font-size: var(--composer-control-font-size);
+  font-weight: 600;
+  height: var(--composer-control-height);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.melody-select-toggle::after {
+  content: "▾";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.melody-select-placeholder {
+  color: rgba(226, 232, 240, 0.6);
+  font-weight: 500;
+}
+
+.melody-select-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.55);
+  display: grid;
+  gap: 0.75rem;
+  z-index: 5;
+}
+
+.melody-select-new label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(203, 213, 245, 0.85);
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.melody-select-input {
+  padding-right: 0.75rem;
+}
+
+.melody-select-divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.melody-select-options {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  align-items: start;
+  text-align: left;
+}
+
+.melody-select-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.melody-select-option:hover {
+  background: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.melody-select-option[data-selected="true"] {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.melody-select-empty {
+  margin: 0;
+  color: rgba(148, 163, 184, 0.9);
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+}
+
 .clef-toggle {
   color: #cbd5f5;
 }
@@ -61,6 +175,18 @@ body {
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(148, 163, 184, 0.12);
   color: #e2e8f0;
+}
+
+.export-json[data-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.save-melody-tooltip {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.55);
 }
 
 .delete-pattern {
