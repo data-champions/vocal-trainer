@@ -60,6 +60,9 @@ export type ReplayItem = {
   score: PatternScore | null;
   message?: string;
   meta?: string;
+  exerciseId?: string;
+  patternId?: string;
+  studentId?: string;
 };
 
 type PreparedNote = {
@@ -126,7 +129,7 @@ export default function ExerciseReplay({
   item: ReplayItem;
 }) {
   const notationMode = DEFAULT_NOTATION_MODE;
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const [vocalRange, setVocalRange] =
     useState<VocalRangeKey>(DEFAULT_VOCAL_RANGE);
   const [transpose, setTranspose] = useState(0);
@@ -149,6 +152,23 @@ export default function ExerciseReplay({
   const currentTargetFrequencyRef = useRef<number | null>(null);
   const currentTargetNoteRef = useRef<string>("");
   const currentTargetNoteIndexRef = useRef<number | null>(null);
+  const isTeacher = session?.user?.isTeacher ?? false;
+  const canLogListen =
+    status === "authenticated" && !isTeacher && Boolean(item.exerciseId);
+
+  const logListen = useCallback(() => {
+    if (!canLogListen || !item.exerciseId) {
+      return;
+    }
+    void fetch("/api/listens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exerciseId: item.exerciseId,
+        semitoneShift: transpose
+      })
+    }).catch(() => {});
+  }, [canLogListen, item.exerciseId, transpose]);
 
   useEffect(() => {
     setTranspose(0);
@@ -398,7 +418,10 @@ export default function ExerciseReplay({
       setIsAudioPlaying(false);
       return;
     }
-    const handlePlay = () => setIsAudioPlaying(true);
+    const handlePlay = () => {
+      setIsAudioPlaying(true);
+      logListen();
+    };
     const handlePause = () => setIsAudioPlaying(false);
     const handleEnded = () => setIsAudioPlaying(false);
     audioEl.addEventListener("play", handlePlay);
@@ -410,7 +433,7 @@ export default function ExerciseReplay({
       audioEl.removeEventListener("pause", handlePause);
       audioEl.removeEventListener("ended", handleEnded);
     };
-  }, [audioUrl]);
+  }, [audioUrl, logListen]);
 
   useEffect(() => {
     return () => {

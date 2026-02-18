@@ -72,6 +72,7 @@ export default function ExercisesPage(): JSX.Element {
         key: `pattern:${pattern.id}`,
         title: pattern.name || 'Pattern',
         score: pattern.score ?? null,
+        patternId: pattern.id,
       })),
     [patterns]
   );
@@ -90,6 +91,9 @@ export default function ExercisesPage(): JSX.Element {
           title: exercise.patternName || 'Pattern',
           score: exercise.score ?? null,
           message: message || undefined,
+          exerciseId: exercise.id,
+          patternId: exercise.patternId,
+          studentId: exercise.studentId,
           meta: isTeacher
             ? `Studente: ${exercise.studentName}${emailLabel}`
             : undefined,
