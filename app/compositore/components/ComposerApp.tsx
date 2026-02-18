@@ -777,6 +777,10 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
     return issues;
   }, [hasNotes, hasPatternName]);
   const shouldShowSaveTooltip = saveMelodyIssues.length > 0;
+  const audioSignature = useMemo(
+    () => buildScoreSignature("preview", clef, placedNotes),
+    [clef, placedNotes]
+  );
   const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(
     null
   );
@@ -797,6 +801,8 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoplayRef = useRef(false);
   const playbackScheduleRef = useRef<PlaybackSegmentWithId[] | null>(null);
+  const lastAudioSignatureRef = useRef<string | null>(null);
+  const autoRenderTimeoutRef = useRef<number | null>(null);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const activeNoteIdRef = useRef<string | null>(null);
   const [previewLines, setPreviewLines] = useState<DropzonePreviewLine[]>([]);
@@ -909,6 +915,9 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
     return () => {
       if (saveTooltipTimeoutRef.current) {
         window.clearTimeout(saveTooltipTimeoutRef.current);
+      }
+      if (autoRenderTimeoutRef.current) {
+        window.clearTimeout(autoRenderTimeoutRef.current);
       }
     };
   }, []);
@@ -1130,51 +1139,150 @@ export default function ComposerApp({ sessionMarker }: ComposerAppProps) {
     URL.revokeObjectURL(url);
   };
 
-  const handleListen = useCallback(async () => {
-    if (!hasNotes) {
-      window.alert("Non ci sono note da riprodurre.");
-      return;
-    }
-
-    const playbackSequence = buildPlaybackSequence(placedNotes);
-    if (playbackSequence.events.length === 0) {
-      window.alert("Nessuna nota valida da riprodurre.");
-      return;
-    }
-    setIsRenderingAudio(true);
-    try {
-      const rendering = await renderPianoMelody(
-        playbackSequence.events,
-        GAP_SECONDS
-      );
-      if (!rendering || rendering.samples.length === 0) {
-        window.alert("Nessun audio generato.");
+  const renderMelodyAudio = useCallback(
+    async ({
+      notes,
+      signature,
+      autoPlay,
+      showAlerts
+    }: {
+      notes: NoteModel[];
+      signature: string;
+      autoPlay: boolean;
+      showAlerts: boolean;
+    }): Promise<boolean> => {
+      if (!notes.length) {
+        if (showAlerts) {
+          window.alert("Non ci sono note da riprodurre.");
+        }
         playbackScheduleRef.current = null;
         setActiveNoteId(null);
-        return;
+        lastAudioSignatureRef.current = null;
+        setAudioUrl(null);
+        return false;
       }
 
-      playbackScheduleRef.current = playbackSequence.schedule;
-      setActiveNoteId(null);
-      const wavBuffer = encodeWav(rendering.samples, rendering.sampleRate, 1);
-      const blob = new Blob([wavBuffer], { type: "audio/wav" });
-      const url = URL.createObjectURL(blob);
-      shouldAutoplayRef.current = true;
-      setAudioUrl((prev) => {
-        if (prev) {
-          URL.revokeObjectURL(prev);
+      const playbackSequence = buildPlaybackSequence(notes);
+      if (playbackSequence.events.length === 0) {
+        if (showAlerts) {
+          window.alert("Nessuna nota valida da riprodurre.");
         }
-        return url;
-      });
-    } catch (error) {
-      console.error("Errore nella riproduzione del pianoforte", error);
-      window.alert("Errore nella riproduzione del pianoforte.");
-      playbackScheduleRef.current = null;
-      setActiveNoteId(null);
-    } finally {
-      setIsRenderingAudio(false);
+        playbackScheduleRef.current = null;
+        setActiveNoteId(null);
+        lastAudioSignatureRef.current = null;
+        return false;
+      }
+
+      setIsRenderingAudio(true);
+      try {
+        const rendering = await renderPianoMelody(
+          playbackSequence.events,
+          GAP_SECONDS
+        );
+        if (!rendering || rendering.samples.length === 0) {
+          if (showAlerts) {
+            window.alert("Nessun audio generato.");
+          }
+          playbackScheduleRef.current = null;
+          setActiveNoteId(null);
+          lastAudioSignatureRef.current = null;
+          return false;
+        }
+
+        playbackScheduleRef.current = playbackSequence.schedule;
+        setActiveNoteId(null);
+        const wavBuffer = encodeWav(rendering.samples, rendering.sampleRate, 1);
+        const blob = new Blob([wavBuffer], { type: "audio/wav" });
+        const url = URL.createObjectURL(blob);
+        shouldAutoplayRef.current = autoPlay;
+        lastAudioSignatureRef.current = signature;
+        setAudioUrl((prev) => {
+          if (prev) {
+            URL.revokeObjectURL(prev);
+          }
+          return url;
+        });
+        return true;
+      } catch (error) {
+        console.error("Errore nella riproduzione del pianoforte", error);
+        if (showAlerts) {
+          window.alert("Errore nella riproduzione del pianoforte.");
+        }
+        playbackScheduleRef.current = null;
+        setActiveNoteId(null);
+        lastAudioSignatureRef.current = null;
+        return false;
+      } finally {
+        setIsRenderingAudio(false);
+      }
+    },
+    [setActiveNoteId, setAudioUrl, setIsRenderingAudio]
+  );
+
+  const handleListen = useCallback(async () => {
+    const audioEl = audioElementRef.current;
+    if (audioEl && !audioEl.paused) {
+      audioEl.pause();
+      audioEl.currentTime = 0;
     }
-  }, [hasNotes, placedNotes]);
+    await renderMelodyAudio({
+      notes: placedNotes,
+      signature: audioSignature,
+      autoPlay: true,
+      showAlerts: true
+    });
+  }, [audioSignature, placedNotes, renderMelodyAudio]);
+
+  useEffect(() => {
+    if (!audioUrl) {
+      return;
+    }
+    if (!hasNotes) {
+      lastAudioSignatureRef.current = null;
+      setAudioUrl(null);
+      return;
+    }
+    if (audioSignature === lastAudioSignatureRef.current) {
+      return;
+    }
+
+    playbackScheduleRef.current = null;
+    setActiveNoteId(null);
+    const audioEl = audioElementRef.current;
+    if (audioEl && !audioEl.paused) {
+      audioEl.pause();
+      audioEl.currentTime = 0;
+    }
+
+    if (autoRenderTimeoutRef.current) {
+      window.clearTimeout(autoRenderTimeoutRef.current);
+    }
+
+    autoRenderTimeoutRef.current = window.setTimeout(() => {
+      if (isRenderingAudio) {
+        return;
+      }
+      void renderMelodyAudio({
+        notes: placedNotes,
+        signature: audioSignature,
+        autoPlay: false,
+        showAlerts: false
+      });
+    }, 350);
+
+    return () => {
+      if (autoRenderTimeoutRef.current) {
+        window.clearTimeout(autoRenderTimeoutRef.current);
+      }
+    };
+  }, [
+    audioSignature,
+    audioUrl,
+    hasNotes,
+    isRenderingAudio,
+    placedNotes,
+    renderMelodyAudio
+  ]);
 
   const handleSaveMelody = useCallback(async (): Promise<boolean> => {
     if (!hasNotes) {
